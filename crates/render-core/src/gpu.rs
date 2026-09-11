@@ -107,12 +107,16 @@ impl GpuContext {
             .max_by_key(adapter_score)
             .ok_or(GpuInitError::NoAdapter { backends })?;
         let adapter_name = adapter.get_info().name;
+        let optional_features =
+            wgpu::Features::TIMESTAMP_QUERY | wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES;
+        let required_features = adapter.features() & optional_features;
+        let required_limits = adapter.limits();
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("rustique-render-device"),
-                    required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::default(),
+                    required_features,
+                    required_limits,
                     memory_hints: wgpu::MemoryHints::Performance,
                 },
                 None,

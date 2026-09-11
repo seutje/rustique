@@ -46,4 +46,13 @@ particle buffers remain GPU-resident; only the final image is read back):
 cargo run -p particle-render --release -- particles --output particles.png --count 1000000 --frame 60 --fps 60 --seed 42
 ```
 
+Run the reproducible RTX scale benchmark (or select one preset with `--count`):
+
+```bash
+cargo run -p particle-render --release -- benchmark --frames 20
+```
+
+See [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) for recorded baseline results and
+the `--particle-size`, `--overdraw`, and `--readback` stress-test options.
+
 The future desktop editor belongs under `apps/desktop`; the render core and CLI do not depend on Tauri or a window.

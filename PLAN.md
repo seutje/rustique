@@ -199,36 +199,36 @@ Establish actual RTX 4070 performance characteristics early.
 
 ## Tasks
 
-- [ ] Add frame timing instrumentation
-- [ ] Measure CPU frame preparation time
-- [ ] Measure GPU compute timing where supported
-- [ ] Measure GPU render timing where supported
-- [ ] Log particle buffer memory size
-- [ ] Add benchmark presets:
-  - [ ] 100k
-  - [ ] 500k
-  - [ ] 1M
-  - [ ] 2M
-  - [ ] 5M
-  - [ ] 10M
-  - [ ] 20M
-- [ ] Add benchmark mode to CLI
-- [ ] Record first benchmark results in `docs/BENCHMARKS.md`
-- [ ] Identify whether current bottleneck is:
-  - [ ] compute
-  - [ ] vertex processing
-  - [ ] fragment overdraw
-  - [ ] memory bandwidth
-  - [ ] readback
-- [ ] Add simple overdraw stress test
-- [ ] Add particle-size scaling test
+- [x] Add frame timing instrumentation
+- [x] Measure CPU frame preparation time
+- [x] Measure GPU compute timing where supported
+- [x] Measure GPU render timing where supported
+- [x] Log particle buffer memory size
+- [x] Add benchmark presets:
+  - [x] 100k
+  - [x] 500k
+  - [x] 1M
+  - [x] 2M
+  - [x] 5M
+  - [x] 10M
+  - [x] 20M
+- [x] Add benchmark mode to CLI
+- [x] Record first benchmark results in `docs/BENCHMARKS.md`
+- [x] Identify whether current bottleneck is:
+  - [x] compute
+  - [x] vertex processing
+  - [x] fragment overdraw
+  - [x] memory bandwidth
+  - [x] readback
+- [x] Add simple overdraw stress test
+- [x] Add particle-size scaling test
 
 ## Acceptance Criteria
 
-- [ ] Reproducible benchmark command exists
-- [ ] Baseline RTX 4070 results are documented
-- [ ] At least 1M particles can be interactively simulated
-- [ ] Offline high-count limits are understood well enough to guide later phases
+- [x] Reproducible benchmark command exists
+- [x] Baseline RTX 4070 results are documented
+- [x] At least 1M particles can be interactively simulated
+- [x] Offline high-count limits are understood well enough to guide later phases
 
 ---
 

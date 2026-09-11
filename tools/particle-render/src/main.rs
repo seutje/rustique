@@ -1,8 +1,13 @@
-use std::{env, path::PathBuf, process::ExitCode};
+use std::{env, path::PathBuf, process::ExitCode, time::Instant};
 
 use render_core::{
-    BackendPreference, GpuConfig, GpuContext, OffscreenRenderTarget, ParticleRenderer, RgbaColor,
+    BackendPreference, BenchmarkConfig, GpuConfig, GpuContext, OffscreenRenderTarget,
+    ParticleRenderer, RgbaColor,
 };
+
+const BENCHMARK_COUNTS: [u32; 7] = [
+    100_000, 500_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000, 20_000_000,
+];
 
 fn main() -> ExitCode {
     match run(env::args().skip(1)) {
@@ -66,6 +71,7 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
             );
             Ok(())
         }
+        Some(Command::Benchmark(benchmark)) => run_benchmark(&context, &benchmark),
         None => Err("no command specified; use still, --gpu-info, or --help".into()),
     }
 }
@@ -82,6 +88,7 @@ enum Command {
     GpuInfo,
     Still(StillOptions),
     Particles(ParticleOptions),
+    Benchmark(BenchmarkOptions),
 }
 
 #[derive(Debug, PartialEq)]
@@ -103,6 +110,17 @@ struct ParticleOptions {
     fps: f32,
 }
 
+#[derive(Debug, PartialEq)]
+struct BenchmarkOptions {
+    count: Option<u32>,
+    frames: u32,
+    width: u32,
+    height: u32,
+    particle_size: f32,
+    overdraw: bool,
+    readback: bool,
+}
+
 impl CliOptions {
     fn parse(mut args: impl Iterator<Item = String>) -> Result<Self, String> {
         let mut options = Self::default();
@@ -116,6 +134,10 @@ impl CliOptions {
                 "particles" => {
                     let particles = ParticleOptions::parse(&mut args, &mut options.backend)?;
                     set_command(&mut options.command, Command::Particles(particles))?;
+                }
+                "benchmark" => {
+                    let benchmark = BenchmarkOptions::parse(&mut args, &mut options.backend)?;
+                    set_command(&mut options.command, Command::Benchmark(benchmark))?;
                 }
                 "-h" | "--help" => options.help = true,
                 "--backend" => {
@@ -209,6 +231,120 @@ impl ParticleOptions {
     }
 }
 
+impl BenchmarkOptions {
+    fn parse(
+        args: &mut impl Iterator<Item = String>,
+        backend: &mut BackendPreference,
+    ) -> Result<Self, String> {
+        let mut result = Self {
+            count: None,
+            frames: 10,
+            width: 1920,
+            height: 1080,
+            particle_size: 2.0,
+            overdraw: false,
+            readback: false,
+        };
+        while let Some(argument) = args.next() {
+            match argument.as_str() {
+                "--count" => {
+                    result.count =
+                        Some(parse_dimension("count", &required_value(args, "--count")?)?);
+                }
+                "--frames" => {
+                    result.frames = parse_dimension("frames", &required_value(args, "--frames")?)?;
+                }
+                "--width" => {
+                    result.width = parse_dimension("width", &required_value(args, "--width")?)?;
+                }
+                "--height" => {
+                    result.height = parse_dimension("height", &required_value(args, "--height")?)?;
+                }
+                "--particle-size" => {
+                    result.particle_size = parse_positive_float(
+                        "particle-size",
+                        &required_value(args, "--particle-size")?,
+                    )?;
+                }
+                "--overdraw" => result.overdraw = true,
+                "--readback" => result.readback = true,
+                "--backend" => *backend = parse_backend(&required_value(args, "--backend")?)?,
+                _ => return Err(format!("unknown benchmark argument: {argument}")),
+            }
+        }
+        Ok(result)
+    }
+}
+
+fn run_benchmark(context: &GpuContext, options: &BenchmarkOptions) -> Result<(), String> {
+    let counts: Vec<u32> = options
+        .count
+        .map_or_else(|| BENCHMARK_COUNTS.to_vec(), |count| vec![count]);
+    println!(
+        "count,buffer_mib,cpu_prepare_ms,gpu_compute_ms,gpu_render_ms,total_gpu_ms,readback_frame_ms"
+    );
+    for count in counts {
+        let target = OffscreenRenderTarget::new(context, options.width, options.height)
+            .map_err(|error| error.to_string())?;
+        let mut renderer =
+            ParticleRenderer::new(context, count, 1).map_err(|error| error.to_string())?;
+        let mut cpu = 0.0;
+        let mut compute = 0.0;
+        let mut render = 0.0;
+        let mut readback = 0.0;
+        for frame in 0..options.frames {
+            let timing = renderer
+                .benchmark_frame(
+                    context,
+                    &target,
+                    frame,
+                    60.0,
+                    BenchmarkConfig {
+                        particle_size_pixels: options.particle_size,
+                        position_scale: if options.overdraw { 0.02 } else { 1.0 },
+                    },
+                )
+                .map_err(|error| error.to_string())?;
+            cpu += timing.cpu_prepare_ms;
+            compute += timing.gpu_compute_ms.unwrap_or(0.0);
+            render += timing.gpu_render_ms.unwrap_or(0.0);
+            if options.readback {
+                let started = Instant::now();
+                let _pixels = renderer
+                    .render_frame(context, &target, frame, 60.0, RgbaColor::BLACK)
+                    .map_err(|error| error.to_string())?;
+                readback += started.elapsed().as_secs_f64() * 1000.0;
+            }
+        }
+        let frames = f64::from(options.frames);
+        println!(
+            "{count},{:.2},{:.4},{:.4},{:.4},{:.4},{}",
+            f64::from(count) * 128.0 / 1_048_576.0,
+            cpu / frames,
+            compute / frames,
+            render / frames,
+            (compute + render) / frames,
+            if options.readback {
+                format!("{:.4}", readback / frames)
+            } else {
+                String::new()
+            }
+        );
+    }
+    Ok(())
+}
+
+fn parse_positive_float(name: &str, value: &str) -> Result<f32, String> {
+    let parsed = value
+        .parse::<f32>()
+        .map_err(|_| format!("invalid {name} '{value}'"))?;
+    if parsed.is_finite() && parsed > 0.0 {
+        Ok(parsed)
+    } else {
+        Err(format!("{name} must be a positive finite number"))
+    }
+}
+
 fn set_command(command: &mut Option<Command>, value: Command) -> Result<(), String> {
     if command.is_some() {
         return Err("only one command may be specified".into());
@@ -279,6 +415,9 @@ fn print_help() {
          [--color RRGGBB[AA]] [--backend auto|dx12|vulkan]\n\
          particle-render particles --output <path> [--count 10000] [--seed 1] \
          [--frame 0] [--fps 60] [--width 1920] [--height 1080] \
+         [--backend auto|dx12|vulkan]\n\
+         particle-render benchmark [--count N] [--frames 10] [--width 1920] \
+         [--height 1080] [--particle-size 2] [--overdraw] [--readback] \
          [--backend auto|dx12|vulkan]"
     );
 }
@@ -370,6 +509,35 @@ mod tests {
                 count: 1_000_000,
                 seed: 9,
                 frame: 4,
+                ..
+            }))
+        ));
+    }
+
+    #[test]
+    fn parses_benchmark_stress_options() {
+        let options = CliOptions::parse(
+            [
+                "benchmark",
+                "--count",
+                "500000",
+                "--frames",
+                "3",
+                "--particle-size",
+                "8",
+                "--overdraw",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .unwrap();
+        assert!(matches!(
+            options.command,
+            Some(Command::Benchmark(BenchmarkOptions {
+                count: Some(500_000),
+                frames: 3,
+                particle_size: 8.0,
+                overdraw: true,
                 ..
             }))
         ));

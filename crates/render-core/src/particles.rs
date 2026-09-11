@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, sync::mpsc, time::Instant};
 
 use bytemuck::{Pod, Zeroable};
 use simulation::{Particle, initialize_particles};
@@ -18,9 +18,27 @@ pub struct FrameUniforms {
     pub particle_count: u32,
     pub delta_time: f32,
     pub simulation_time: f32,
+    pub viewport_size: [f32; 2],
+    pub particle_size_pixels: f32,
+    pub position_scale: f32,
 }
 
-const _: () = assert!(size_of::<FrameUniforms>() == 80);
+const _: () = assert!(size_of::<FrameUniforms>() == 96);
+
+#[derive(Clone, Copy, Debug)]
+pub struct BenchmarkConfig {
+    pub particle_size_pixels: f32,
+    pub position_scale: f32,
+}
+
+impl Default for BenchmarkConfig {
+    fn default() -> Self {
+        Self {
+            particle_size_pixels: 2.0,
+            position_scale: 1.0,
+        }
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum ParticleRenderError {
@@ -32,6 +50,17 @@ pub enum ParticleRenderError {
     BufferLimit { required: u64, maximum: u64 },
     #[error(transparent)]
     Offscreen(#[from] OffscreenError),
+    #[error("GPU timing readback callback was dropped")]
+    TimingCallbackDropped,
+    #[error("GPU timing readback failed: {0}")]
+    TimingMap(#[from] wgpu::BufferAsyncError),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct FrameTiming {
+    pub cpu_prepare_ms: f64,
+    pub gpu_compute_ms: Option<f64>,
+    pub gpu_render_ms: Option<f64>,
 }
 
 /// Reusable GPU-resident ping-pong simulation and point rendering pipeline.
@@ -43,6 +72,13 @@ pub struct ParticleRenderer {
     compute_pipeline: wgpu::ComputePipeline,
     render_pipeline: wgpu::RenderPipeline,
     source_index: usize,
+    timing: Option<TimingResources>,
+}
+
+struct TimingResources {
+    queries: wgpu::QuerySet,
+    resolve: wgpu::Buffer,
+    readback: wgpu::Buffer,
 }
 
 impl ParticleRenderer {
@@ -175,7 +211,7 @@ impl ParticleRenderer {
                         })],
                     }),
                     primitive: wgpu::PrimitiveState {
-                        topology: wgpu::PrimitiveTopology::PointList,
+                        topology: wgpu::PrimitiveTopology::TriangleList,
                         ..Default::default()
                     },
                     depth_stencil: None,
@@ -191,12 +227,118 @@ impl ParticleRenderer {
             compute_pipeline,
             render_pipeline,
             source_index: 0,
+            timing: create_timing_resources(context),
         })
     }
 
     #[must_use]
     pub const fn particle_count(&self) -> u32 {
         self.particle_count
+    }
+
+    #[must_use]
+    pub fn particle_memory_bytes(&self) -> u64 {
+        u64::from(self.particle_count) * size_of::<Particle>() as u64 * 2
+    }
+
+    /// Measures CPU frame preparation and GPU compute/render work without image readback.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if timestamp results cannot be mapped. GPU fields are
+    /// `None` on adapters without timestamp-query support.
+    #[allow(clippy::cast_precision_loss)]
+    pub fn benchmark_frame(
+        &mut self,
+        context: &GpuContext,
+        target: &OffscreenRenderTarget,
+        frame_index: u32,
+        fps: f32,
+        config: BenchmarkConfig,
+    ) -> Result<FrameTiming, ParticleRenderError> {
+        let started = Instant::now();
+        let uniforms = FrameUniforms {
+            view_projection: aspect_matrix(target.dimensions()),
+            frame_index,
+            particle_count: self.particle_count,
+            delta_time: 1.0 / fps,
+            simulation_time: frame_index as f32 / fps,
+            viewport_size: [target.dimensions().0 as f32, target.dimensions().1 as f32],
+            particle_size_pixels: config.particle_size_pixels,
+            position_scale: config.position_scale,
+        };
+        context
+            .queue
+            .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
+        let view = target.view();
+        let mut encoder = context
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("particle-benchmark-frame"),
+            });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("particle-benchmark-compute"),
+                timestamp_writes: self.timing.as_ref().map(|timing| {
+                    wgpu::ComputePassTimestampWrites {
+                        query_set: &timing.queries,
+                        beginning_of_pass_write_index: Some(0),
+                        end_of_pass_write_index: Some(1),
+                    }
+                }),
+            });
+            pass.set_pipeline(&self.compute_pipeline);
+            pass.set_bind_group(0, &self.bind_groups[self.source_index], &[]);
+            let (groups_x, groups_y) = dispatch_dimensions(self.particle_count);
+            pass.dispatch_workgroups(groups_x, groups_y, 1);
+        }
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("particle-benchmark-render"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: self.timing.as_ref().map(|timing| {
+                    wgpu::RenderPassTimestampWrites {
+                        query_set: &timing.queries,
+                        beginning_of_pass_write_index: Some(2),
+                        end_of_pass_write_index: Some(3),
+                    }
+                }),
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(&self.render_pipeline);
+            pass.set_bind_group(0, &self.bind_groups[self.source_index ^ 1], &[]);
+            pass.draw(0..self.particle_count.saturating_mul(6), 0..1);
+        }
+        if let Some(timing) = &self.timing {
+            encoder.resolve_query_set(&timing.queries, 0..4, &timing.resolve, 0);
+            encoder.copy_buffer_to_buffer(&timing.resolve, 0, &timing.readback, 0, 32);
+        }
+        let cpu_prepare_ms = started.elapsed().as_secs_f64() * 1000.0;
+        context.queue.submit([encoder.finish()]);
+        self.source_index ^= 1;
+        let (gpu_compute_ms, gpu_render_ms) = if let Some(timing) = &self.timing {
+            let values = read_timestamps(context, &timing.readback)?;
+            let period_ms = f64::from(context.queue.get_timestamp_period()) / 1_000_000.0;
+            (
+                (values[1] - values[0]) as f64 * period_ms,
+                (values[3] - values[2]) as f64 * period_ms,
+            )
+        } else {
+            (0.0, 0.0)
+        };
+        Ok(FrameTiming {
+            cpu_prepare_ms,
+            gpu_compute_ms: self.timing.as_ref().map(|_| gpu_compute_ms),
+            gpu_render_ms: self.timing.as_ref().map(|_| gpu_render_ms),
+        })
     }
 
     /// Advances one fixed frame and renders the resulting GPU buffer.
@@ -219,6 +361,9 @@ impl ParticleRenderer {
             particle_count: self.particle_count,
             delta_time: 1.0 / fps,
             simulation_time: frame_index as f32 / fps,
+            viewport_size: [target.dimensions().0 as f32, target.dimensions().1 as f32],
+            particle_size_pixels: 2.0,
+            position_scale: 1.0,
         };
         context
             .queue
@@ -236,7 +381,8 @@ impl ParticleRenderer {
             });
             pass.set_pipeline(&self.compute_pipeline);
             pass.set_bind_group(0, &self.bind_groups[self.source_index], &[]);
-            pass.dispatch_workgroups(self.particle_count.div_ceil(256), 1, 1);
+            let (groups_x, groups_y) = dispatch_dimensions(self.particle_count);
+            pass.dispatch_workgroups(groups_x, groups_y, 1);
         }
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -255,7 +401,7 @@ impl ParticleRenderer {
             });
             pass.set_pipeline(&self.render_pipeline);
             pass.set_bind_group(0, &self.bind_groups[self.source_index ^ 1], &[]);
-            pass.draw(0..self.particle_count, 0..1);
+            pass.draw(0..self.particle_count.saturating_mul(6), 0..1);
         }
         target.encode_readback(&mut encoder);
         context.queue.submit([encoder.finish()]);
@@ -297,6 +443,65 @@ fn storage_entry(
         },
         count: None,
     }
+}
+
+fn dispatch_dimensions(particle_count: u32) -> (u32, u32) {
+    let groups = particle_count.div_ceil(256);
+    let groups_x = groups.min(65_535);
+    (groups_x, groups.div_ceil(groups_x))
+}
+
+fn create_timing_resources(context: &GpuContext) -> Option<TimingResources> {
+    if !context
+        .device
+        .features()
+        .contains(wgpu::Features::TIMESTAMP_QUERY)
+    {
+        return None;
+    }
+    let queries = context.device.create_query_set(&wgpu::QuerySetDescriptor {
+        label: Some("particle-timing-queries"),
+        ty: wgpu::QueryType::Timestamp,
+        count: 4,
+    });
+    let resolve = context.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("particle-timing-resolve"),
+        size: 32,
+        usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
+        mapped_at_creation: false,
+    });
+    let readback = context.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("particle-timing-readback"),
+        size: 32,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    Some(TimingResources {
+        queries,
+        resolve,
+        readback,
+    })
+}
+
+fn read_timestamps(
+    context: &GpuContext,
+    buffer: &wgpu::Buffer,
+) -> Result<[u64; 4], ParticleRenderError> {
+    let slice = buffer.slice(..);
+    let (sender, receiver) = mpsc::channel();
+    slice.map_async(wgpu::MapMode::Read, move |result| {
+        let _ = sender.send(result);
+    });
+    let _ = context.device.poll(wgpu::Maintain::Wait);
+    receiver
+        .recv()
+        .map_err(|_| ParticleRenderError::TimingCallbackDropped)??;
+    let mapped = slice.get_mapped_range();
+    let mut values = [0_u64; 4];
+    values.copy_from_slice(bytemuck::cast_slice(&mapped));
+    drop(mapped);
+    buffer.unmap();
+    Ok(values)
 }
 
 fn make_bind_group(

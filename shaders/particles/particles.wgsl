@@ -15,11 +15,23 @@ struct FrameUniforms {
     viewport_size: vec2<f32>,
     particle_size_pixels: f32,
     position_scale: f32,
+    simulation_seed: u32,
+    _padding0: u32,
+    _padding1: u32,
+    _padding2: u32,
 }
 
 @group(0) @binding(0) var<storage, read> particles_in: array<Particle>;
 @group(0) @binding(1) var<storage, read_write> particles_out: array<Particle>;
 @group(0) @binding(2) var<uniform> frame: FrameUniforms;
+
+fn random_unit(value: u32) -> f32 {
+    var mixed = value;
+    mixed = (mixed ^ (mixed >> 16u)) * 0x7feb352du;
+    mixed = (mixed ^ (mixed >> 15u)) * 0x846ca68bu;
+    mixed = mixed ^ (mixed >> 16u);
+    return f32(mixed >> 8u) / 16777216.0;
+}
 
 @compute @workgroup_size(256)
 fn update(@builtin(global_invocation_id) id: vec3<u32>) {
@@ -32,7 +44,15 @@ fn update(@builtin(global_invocation_id) id: vec3<u32>) {
     );
     if (particle.position_age.x < -1.0 || particle.position_age.x > 1.0) { particle.velocity_lifetime.x *= -1.0; }
     if (particle.position_age.y < -1.0 || particle.position_age.y > 1.0) { particle.velocity_lifetime.y *= -1.0; }
-    if (particle.position_age.w >= particle.velocity_lifetime.w) { particle.position_age.w = 0.0; }
+    if (particle.position_age.w >= particle.velocity_lifetime.w) {
+        let generation = frame.frame_index + 1u;
+        let base = index ^ frame.simulation_seed ^ generation * 0x9e3779b9u;
+        let x = random_unit(base) * 2.0 - 1.0;
+        let y = random_unit(base ^ 0x68bc21ebu) * 2.0 - 1.0;
+        let speed = 0.05 + random_unit(base ^ 0x02e5be93u) * 0.15;
+        particle.position_age = vec4<f32>(x * 0.85, y * 0.85, 0.0, 0.0);
+        particle.velocity_lifetime = vec4<f32>(-y * speed, x * speed, 0.0, 5.0);
+    }
     particles_out[index] = particle;
 }
 

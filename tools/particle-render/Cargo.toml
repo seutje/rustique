@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 pollster = "0.4"
 render-core = { path = "../../crates/render-core" }
+simulation = { path = "../../crates/simulation" }
 
 [lints]
 workspace = true

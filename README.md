@@ -46,6 +46,9 @@ particle buffers remain GPU-resident; only the final image is read back):
 cargo run -p particle-render --release -- particles --output particles.png --count 1000000 --frame 60 --fps 60 --seed 42
 ```
 
+Use `--substeps N` to select deterministic fixed simulation substeps. Arbitrary
+frame requests replay from frame zero; see [`docs/DETERMINISM.md`](docs/DETERMINISM.md).
+
 Run the reproducible RTX scale benchmark (or select one preset with `--count`):
 
 ```bash

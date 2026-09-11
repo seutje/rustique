@@ -1,7 +1,7 @@
 use std::{path::Path, sync::mpsc, time::Instant};
 
 use bytemuck::{Pod, Zeroable};
-use simulation::{Particle, initialize_particles};
+use simulation::{Particle, SimulationTiming, initialize_particles};
 use thiserror::Error;
 use wgpu::util::DeviceExt;
 
@@ -21,9 +21,11 @@ pub struct FrameUniforms {
     pub viewport_size: [f32; 2],
     pub particle_size_pixels: f32,
     pub position_scale: f32,
+    pub simulation_seed: u32,
+    padding: [u32; 3],
 }
 
-const _: () = assert!(size_of::<FrameUniforms>() == 96);
+const _: () = assert!(size_of::<FrameUniforms>() == 112);
 
 #[derive(Clone, Copy, Debug)]
 pub struct BenchmarkConfig {
@@ -66,13 +68,15 @@ pub struct FrameTiming {
 /// Reusable GPU-resident ping-pong simulation and point rendering pipeline.
 pub struct ParticleRenderer {
     particle_count: u32,
-    _buffers: [wgpu::Buffer; 2],
+    buffers: [wgpu::Buffer; 2],
     uniform_buffer: wgpu::Buffer,
     bind_groups: [wgpu::BindGroup; 2],
     compute_pipeline: wgpu::ComputePipeline,
     render_pipeline: wgpu::RenderPipeline,
     source_index: usize,
     timing: Option<TimingResources>,
+    seed: u64,
+    timeline_frame: u32,
 }
 
 struct TimingResources {
@@ -221,13 +225,15 @@ impl ParticleRenderer {
                 });
         Ok(Self {
             particle_count,
-            _buffers: buffers,
+            buffers,
             uniform_buffer,
             bind_groups,
             compute_pipeline,
             render_pipeline,
             source_index: 0,
             timing: create_timing_resources(context),
+            seed,
+            timeline_frame: 0,
         })
     }
 
@@ -239,6 +245,142 @@ impl ParticleRenderer {
     #[must_use]
     pub fn particle_memory_bytes(&self) -> u64 {
         u64::from(self.particle_count) * size_of::<Particle>() as u64 * 2
+    }
+
+    /// Restores both ping-pong buffers to their deterministic frame-zero state.
+    pub fn reset(&mut self, context: &GpuContext) {
+        let particles = initialize_particles(self.particle_count, self.seed);
+        for buffer in &self.buffers {
+            context
+                .queue
+                .write_buffer(buffer, 0, bytemuck::cast_slice(&particles));
+        }
+        self.source_index = 0;
+        self.timeline_frame = 0;
+    }
+
+    /// Deterministically seeks to and renders an offline timeline frame.
+    ///
+    /// Forward seeks replay fixed simulation steps. Backward seeks reset to the
+    /// stored seed and replay from frame zero. Only the final color texture is
+    /// read back; particle buffers remain GPU-resident.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if final texture readback fails.
+    #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
+    pub fn render_timeline_frame(
+        &mut self,
+        context: &GpuContext,
+        target: &OffscreenRenderTarget,
+        frame_index: u32,
+        timing: SimulationTiming,
+        clear: RgbaColor,
+    ) -> Result<Vec<u8>, ParticleRenderError> {
+        if frame_index < self.timeline_frame {
+            self.reset(context);
+        }
+        for frame in (self.timeline_frame + 1)..=frame_index {
+            for substep in 0..timing.substeps() {
+                let uniforms = FrameUniforms {
+                    view_projection: aspect_matrix(target.dimensions()),
+                    frame_index: frame,
+                    particle_count: self.particle_count,
+                    delta_time: timing.substep_delta(),
+                    simulation_time: timing.frame_time(frame)
+                        + substep as f32 * timing.substep_delta(),
+                    viewport_size: [target.dimensions().0 as f32, target.dimensions().1 as f32],
+                    particle_size_pixels: 2.0,
+                    position_scale: 1.0,
+                    simulation_seed: seed_u32(self.seed),
+                    padding: [0; 3],
+                };
+                context
+                    .queue
+                    .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
+                let mut encoder =
+                    context
+                        .device
+                        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                            label: Some("particle-fixed-step"),
+                        });
+                {
+                    let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                        label: Some("particle-fixed-step-update"),
+                        timestamp_writes: None,
+                    });
+                    pass.set_pipeline(&self.compute_pipeline);
+                    pass.set_bind_group(0, &self.bind_groups[self.source_index], &[]);
+                    let (groups_x, groups_y) = dispatch_dimensions(self.particle_count);
+                    pass.dispatch_workgroups(groups_x, groups_y, 1);
+                }
+                context.queue.submit([encoder.finish()]);
+                self.source_index ^= 1;
+            }
+        }
+        self.timeline_frame = frame_index;
+
+        let uniforms = FrameUniforms {
+            view_projection: aspect_matrix(target.dimensions()),
+            frame_index,
+            particle_count: self.particle_count,
+            delta_time: timing.substep_delta(),
+            simulation_time: timing.frame_time(frame_index),
+            viewport_size: [target.dimensions().0 as f32, target.dimensions().1 as f32],
+            particle_size_pixels: 2.0,
+            position_scale: 1.0,
+            simulation_seed: seed_u32(self.seed),
+            padding: [0; 3],
+        };
+        context
+            .queue
+            .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
+        let view = target.view();
+        let mut encoder = context
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("particle-timeline-render"),
+            });
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("particle-timeline-render-pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(clear.into()),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(&self.render_pipeline);
+            pass.set_bind_group(0, &self.bind_groups[self.source_index], &[]);
+            pass.draw(0..self.particle_count.saturating_mul(6), 0..1);
+        }
+        target.encode_readback(&mut encoder);
+        context.queue.submit([encoder.finish()]);
+        Ok(target.read_pixels(context)?)
+    }
+
+    /// Deterministically seeks to a timeline frame and saves it as PNG.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if rendering, readback, or PNG encoding fails.
+    pub fn save_timeline_frame_png(
+        &mut self,
+        context: &GpuContext,
+        target: &OffscreenRenderTarget,
+        frame_index: u32,
+        timing: SimulationTiming,
+        clear: RgbaColor,
+        path: impl AsRef<Path>,
+    ) -> Result<(), ParticleRenderError> {
+        let pixels = self.render_timeline_frame(context, target, frame_index, timing, clear)?;
+        Ok(target.save_png(&pixels, path.as_ref())?)
     }
 
     /// Measures CPU frame preparation and GPU compute/render work without image readback.
@@ -266,6 +408,8 @@ impl ParticleRenderer {
             viewport_size: [target.dimensions().0 as f32, target.dimensions().1 as f32],
             particle_size_pixels: config.particle_size_pixels,
             position_scale: config.position_scale,
+            simulation_seed: seed_u32(self.seed),
+            padding: [0; 3],
         };
         context
             .queue
@@ -364,6 +508,8 @@ impl ParticleRenderer {
             viewport_size: [target.dimensions().0 as f32, target.dimensions().1 as f32],
             particle_size_pixels: 2.0,
             position_scale: 1.0,
+            simulation_seed: seed_u32(self.seed),
+            padding: [0; 3],
         };
         context
             .queue
@@ -449,6 +595,11 @@ fn dispatch_dimensions(particle_count: u32) -> (u32, u32) {
     let groups = particle_count.div_ceil(256);
     let groups_x = groups.min(65_535);
     (groups_x, groups.div_ceil(groups_x))
+}
+
+fn seed_u32(seed: u64) -> u32 {
+    let bytes = seed.to_le_bytes();
+    u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
 }
 
 fn create_timing_resources(context: &GpuContext) -> Option<TimingResources> {

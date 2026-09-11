@@ -1,9 +1,10 @@
-use std::{env, path::PathBuf, process::ExitCode, time::Instant};
+use std::{env, num::NonZeroU32, path::PathBuf, process::ExitCode, time::Instant};
 
 use render_core::{
     BackendPreference, BenchmarkConfig, GpuConfig, GpuContext, OffscreenRenderTarget,
     ParticleRenderer, RgbaColor,
 };
+use simulation::SimulationTiming;
 
 const BENCHMARK_COUNTS: [u32; 7] = [
     100_000, 500_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000, 20_000_000,
@@ -53,12 +54,20 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
                 .map_err(|error| format!("failed to create offscreen target: {error}"))?;
             let mut renderer = ParticleRenderer::new(&context, particles.count, particles.seed)
                 .map_err(|error| format!("failed to create particle renderer: {error}"))?;
+            let timing = SimulationTiming::new(
+                NonZeroU32::new(particles.fps)
+                    .ok_or_else(|| "fps must be greater than zero".to_owned())?,
+                NonZeroU32::new(particles.fps)
+                    .ok_or_else(|| "fps must be greater than zero".to_owned())?,
+                NonZeroU32::new(particles.substeps)
+                    .ok_or_else(|| "substeps must be greater than zero".to_owned())?,
+            );
             renderer
-                .save_frame_png(
+                .save_timeline_frame_png(
                     &context,
                     &target,
                     particles.frame,
-                    particles.fps,
+                    timing,
                     RgbaColor::BLACK,
                     &particles.output,
                 )
@@ -107,7 +116,8 @@ struct ParticleOptions {
     count: u32,
     seed: u64,
     frame: u32,
-    fps: f32,
+    fps: u32,
+    substeps: u32,
 }
 
 #[derive(Debug, PartialEq)]
@@ -196,7 +206,8 @@ impl ParticleOptions {
         let mut count = 10_000;
         let mut seed = 1;
         let mut frame = 0;
-        let mut fps = 60.0;
+        let mut fps = 60;
+        let mut substeps = 1;
         while let Some(argument) = args.next() {
             match argument.as_str() {
                 "--output" => output = Some(PathBuf::from(required_value(args, "--output")?)),
@@ -207,13 +218,9 @@ impl ParticleOptions {
                 "--count" => count = parse_dimension("count", &required_value(args, "--count")?)?,
                 "--seed" => seed = parse_number("seed", &required_value(args, "--seed")?)?,
                 "--frame" => frame = parse_number("frame", &required_value(args, "--frame")?)?,
-                "--fps" => {
-                    fps = required_value(args, "--fps")?
-                        .parse::<f32>()
-                        .map_err(|_| "fps must be a positive number".to_owned())?;
-                    if !fps.is_finite() || fps <= 0.0 {
-                        return Err("fps must be a positive finite number".to_owned());
-                    }
+                "--fps" => fps = parse_dimension("fps", &required_value(args, "--fps")?)?,
+                "--substeps" => {
+                    substeps = parse_dimension("substeps", &required_value(args, "--substeps")?)?;
                 }
                 "--backend" => *backend = parse_backend(&required_value(args, "--backend")?)?,
                 _ => return Err(format!("unknown particles argument: {argument}")),
@@ -227,6 +234,7 @@ impl ParticleOptions {
             seed,
             frame,
             fps,
+            substeps,
         })
     }
 }
@@ -414,7 +422,7 @@ fn print_help() {
          particle-render still --output <path> [--width 1920] [--height 1080] \
          [--color RRGGBB[AA]] [--backend auto|dx12|vulkan]\n\
          particle-render particles --output <path> [--count 10000] [--seed 1] \
-         [--frame 0] [--fps 60] [--width 1920] [--height 1080] \
+         [--frame 0] [--fps 60] [--substeps 1] [--width 1920] [--height 1080] \
          [--backend auto|dx12|vulkan]\n\
          particle-render benchmark [--count N] [--frames 10] [--width 1920] \
          [--height 1080] [--particle-size 2] [--overdraw] [--readback] \

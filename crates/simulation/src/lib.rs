@@ -1,6 +1,7 @@
 //! GPU-compatible particle simulation data.
 
 use bytemuck::{Pod, Zeroable};
+use std::num::NonZeroU32;
 
 /// Particle state shared verbatim with WGSL storage buffers.
 ///
@@ -14,6 +15,56 @@ pub struct Particle {
     pub velocity_lifetime: [f32; 4],
     pub color: [f32; 4],
     pub params: [f32; 4],
+}
+
+/// Fixed offline simulation timing, independent of preview refresh rate.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SimulationTiming {
+    project_fps: NonZeroU32,
+    preview_fps: NonZeroU32,
+    substeps: NonZeroU32,
+}
+
+impl SimulationTiming {
+    #[must_use]
+    pub const fn new(
+        project_fps: NonZeroU32,
+        preview_fps: NonZeroU32,
+        substeps: NonZeroU32,
+    ) -> Self {
+        Self {
+            project_fps,
+            preview_fps,
+            substeps,
+        }
+    }
+
+    #[must_use]
+    pub const fn project_fps(self) -> u32 {
+        self.project_fps.get()
+    }
+
+    #[must_use]
+    pub const fn preview_fps(self) -> u32 {
+        self.preview_fps.get()
+    }
+
+    #[must_use]
+    pub const fn substeps(self) -> u32 {
+        self.substeps.get()
+    }
+
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn frame_time(self, frame_index: u32) -> f32 {
+        frame_index as f32 / self.project_fps.get() as f32
+    }
+
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn substep_delta(self) -> f32 {
+        1.0 / (self.project_fps.get() as f32 * self.substeps.get() as f32)
+    }
 }
 
 const _: () = assert!(size_of::<Particle>() == 64);
@@ -79,5 +130,18 @@ mod tests {
         assert_eq!(short, initialize_particles(4, 42));
         assert_eq!(short, initialize_particles(8, 42)[..4]);
         assert_ne!(short, initialize_particles(4, 43));
+    }
+
+    #[test]
+    fn preview_rate_does_not_change_offline_timing() {
+        let sixty = NonZeroU32::new(60).unwrap();
+        let timing = SimulationTiming::new(
+            sixty,
+            NonZeroU32::new(30).unwrap(),
+            NonZeroU32::new(2).unwrap(),
+        );
+        assert!((timing.frame_time(120) - 2.0).abs() < f32::EPSILON);
+        assert!((timing.substep_delta() - 1.0 / 120.0).abs() < f32::EPSILON);
+        assert_eq!(timing.preview_fps(), 30);
     }
 }

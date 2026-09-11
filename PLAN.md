@@ -240,24 +240,25 @@ Make the simulation reproducible and independent from wall-clock time.
 
 ## Tasks
 
-- [ ] Define fixed timestep behavior
-- [ ] Define project FPS separately from preview FPS
-- [ ] Make simulation time derive from frame index
-- [ ] Add deterministic seeded initialization
-- [ ] Add deterministic respawning
-- [ ] Avoid platform-dependent random initialization
-- [ ] Add simulation substep configuration
-- [ ] Add reset-to-frame-zero behavior
-- [ ] Add deterministic seek strategy for early versions
-- [ ] Add determinism regression test for CPU-side generated initialization data
-- [ ] Document practical GPU floating-point determinism limits
+- [x] Define fixed timestep behavior
+- [x] Define project FPS separately from preview FPS
+- [x] Make simulation time derive from frame index
+- [x] Add deterministic seeded initialization
+- [x] Add deterministic respawning
+- [x] Avoid platform-dependent random initialization
+- [x] Add simulation substep configuration
+- [x] Add reset-to-frame-zero behavior
+- [x] Add deterministic seek strategy for early versions
+- [x] Add determinism regression test for CPU-side generated initialization data
+- [x] Document practical GPU floating-point determinism limits
 
 ## Acceptance Criteria
 
-- [ ] Rendering frames 0–300 twice produces visually equivalent output
-- [ ] Output does not depend on wall-clock speed
-- [ ] Preview resolution does not alter particle motion
-- [ ] Changing render resolution does not change simulation state
+- [x] Rendering frames 0–300 twice produces visually equivalent output
+  - Repeated frame-300 renders produced identical SHA-256 image hashes.
+- [x] Output does not depend on wall-clock speed
+- [x] Preview resolution does not alter particle motion
+- [x] Changing render resolution does not change simulation state
 
 ---
 

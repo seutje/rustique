@@ -6,7 +6,9 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+bytemuck = "1"
 png = "0.17"
+simulation = { path = "../simulation" }
 thiserror = "2"
 wgpu = "24"
 

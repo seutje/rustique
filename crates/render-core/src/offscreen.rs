@@ -155,40 +155,12 @@ impl OffscreenRenderTarget {
         (self.width, self.height)
     }
 
-    /// Clears the target and returns tightly packed RGBA8 pixels.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the GPU cannot map the staging buffer.
-    pub fn render_clear(
-        &self,
-        context: &GpuContext,
-        color: RgbaColor,
-    ) -> Result<Vec<u8>, OffscreenError> {
-        let view = self
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = context
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("rustique-offscreen-clear"),
-            });
-        {
-            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("rustique-offscreen-clear-pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(color.into()),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-        }
+    pub(crate) fn view(&self) -> wgpu::TextureView {
+        self.texture
+            .create_view(&wgpu::TextureViewDescriptor::default())
+    }
+
+    pub(crate) fn encode_readback(&self, encoder: &mut wgpu::CommandEncoder) {
         encoder.copy_texture_to_buffer(
             self.texture.as_image_copy(),
             wgpu::TexelCopyBufferInfo {
@@ -205,8 +177,9 @@ impl OffscreenRenderTarget {
                 depth_or_array_layers: 1,
             },
         );
-        context.queue.submit([encoder.finish()]);
+    }
 
+    pub(crate) fn read_pixels(&self, context: &GpuContext) -> Result<Vec<u8>, OffscreenError> {
         let slice = self.readback_buffer.slice(..);
         let (sender, receiver) = mpsc::channel();
         slice.map_async(wgpu::MapMode::Read, move |result| {
@@ -228,19 +201,7 @@ impl OffscreenRenderTarget {
         Ok(pixels)
     }
 
-    /// Renders a clear color and saves it as an RGBA PNG.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when readback, file creation, or PNG encoding fails.
-    pub fn save_clear_png(
-        &self,
-        context: &GpuContext,
-        color: RgbaColor,
-        path: impl AsRef<Path>,
-    ) -> Result<(), OffscreenError> {
-        let pixels = self.render_clear(context, color)?;
-        let path = path.as_ref();
+    pub(crate) fn save_png(&self, pixels: &[u8], path: &Path) -> Result<(), OffscreenError> {
         let file = File::create(path).map_err(|source| OffscreenError::CreatePng {
             path: path.to_owned(),
             source,
@@ -255,11 +216,64 @@ impl OffscreenRenderTarget {
                 source,
             })?;
         writer
-            .write_image_data(&pixels)
+            .write_image_data(pixels)
             .map_err(|source| OffscreenError::EncodePng {
                 path: path.to_owned(),
                 source,
             })
+    }
+
+    /// Clears the target and returns tightly packed RGBA8 pixels.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the GPU cannot map the staging buffer.
+    pub fn render_clear(
+        &self,
+        context: &GpuContext,
+        color: RgbaColor,
+    ) -> Result<Vec<u8>, OffscreenError> {
+        let view = self.view();
+        let mut encoder = context
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("rustique-offscreen-clear"),
+            });
+        {
+            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("rustique-offscreen-clear-pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(color.into()),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+        }
+        self.encode_readback(&mut encoder);
+        context.queue.submit([encoder.finish()]);
+        self.read_pixels(context)
+    }
+
+    /// Renders a clear color and saves it as an RGBA PNG.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when readback, file creation, or PNG encoding fails.
+    pub fn save_clear_png(
+        &self,
+        context: &GpuContext,
+        color: RgbaColor,
+        path: impl AsRef<Path>,
+    ) -> Result<(), OffscreenError> {
+        let pixels = self.render_clear(context, color)?;
+        let path = path.as_ref();
+        self.save_png(&pixels, path)
     }
 }
 

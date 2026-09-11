@@ -39,4 +39,11 @@ cargo run -p particle-render -- still --output frame.png --width 1920 --height 1
 
 To force a supported backend, add `--backend dx12` or `--backend vulkan`.
 
+Render a deterministic, compute-simulated particle frame (the simulation and
+particle buffers remain GPU-resident; only the final image is read back):
+
+```bash
+cargo run -p particle-render --release -- particles --output particles.png --count 1000000 --frame 60 --fps 60 --seed 42
+```
+
 The future desktop editor belongs under `apps/desktop`; the render core and CLI do not depend on Tauri or a window.

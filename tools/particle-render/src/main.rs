@@ -1,6 +1,8 @@
 use std::{env, path::PathBuf, process::ExitCode};
 
-use render_core::{BackendPreference, GpuConfig, GpuContext, OffscreenRenderTarget, RgbaColor};
+use render_core::{
+    BackendPreference, GpuConfig, GpuContext, OffscreenRenderTarget, ParticleRenderer, RgbaColor,
+};
 
 fn main() -> ExitCode {
     match run(env::args().skip(1)) {
@@ -41,6 +43,29 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
             );
             Ok(())
         }
+        Some(Command::Particles(particles)) => {
+            let target = OffscreenRenderTarget::new(&context, particles.width, particles.height)
+                .map_err(|error| format!("failed to create offscreen target: {error}"))?;
+            let mut renderer = ParticleRenderer::new(&context, particles.count, particles.seed)
+                .map_err(|error| format!("failed to create particle renderer: {error}"))?;
+            renderer
+                .save_frame_png(
+                    &context,
+                    &target,
+                    particles.frame,
+                    particles.fps,
+                    RgbaColor::BLACK,
+                    &particles.output,
+                )
+                .map_err(|error| format!("failed to render particles: {error}"))?;
+            println!(
+                "Rendered {} particles at frame {} to {}",
+                particles.count,
+                particles.frame,
+                particles.output.display()
+            );
+            Ok(())
+        }
         None => Err("no command specified; use still, --gpu-info, or --help".into()),
     }
 }
@@ -56,6 +81,7 @@ struct CliOptions {
 enum Command {
     GpuInfo,
     Still(StillOptions),
+    Particles(ParticleOptions),
 }
 
 #[derive(Debug, PartialEq)]
@@ -64,6 +90,17 @@ struct StillOptions {
     width: u32,
     height: u32,
     color: RgbaColor,
+}
+
+#[derive(Debug, PartialEq)]
+struct ParticleOptions {
+    output: PathBuf,
+    width: u32,
+    height: u32,
+    count: u32,
+    seed: u64,
+    frame: u32,
+    fps: f32,
 }
 
 impl CliOptions {
@@ -75,6 +112,10 @@ impl CliOptions {
                 "still" => {
                     let still = StillOptions::parse(&mut args, &mut options.backend)?;
                     set_command(&mut options.command, Command::Still(still))?;
+                }
+                "particles" => {
+                    let particles = ParticleOptions::parse(&mut args, &mut options.backend)?;
+                    set_command(&mut options.command, Command::Particles(particles))?;
                 }
                 "-h" | "--help" => options.help = true,
                 "--backend" => {
@@ -122,6 +163,52 @@ impl StillOptions {
     }
 }
 
+impl ParticleOptions {
+    fn parse(
+        args: &mut impl Iterator<Item = String>,
+        backend: &mut BackendPreference,
+    ) -> Result<Self, String> {
+        let mut output = None;
+        let mut width = 1920;
+        let mut height = 1080;
+        let mut count = 10_000;
+        let mut seed = 1;
+        let mut frame = 0;
+        let mut fps = 60.0;
+        while let Some(argument) = args.next() {
+            match argument.as_str() {
+                "--output" => output = Some(PathBuf::from(required_value(args, "--output")?)),
+                "--width" => width = parse_dimension("width", &required_value(args, "--width")?)?,
+                "--height" => {
+                    height = parse_dimension("height", &required_value(args, "--height")?)?;
+                }
+                "--count" => count = parse_dimension("count", &required_value(args, "--count")?)?,
+                "--seed" => seed = parse_number("seed", &required_value(args, "--seed")?)?,
+                "--frame" => frame = parse_number("frame", &required_value(args, "--frame")?)?,
+                "--fps" => {
+                    fps = required_value(args, "--fps")?
+                        .parse::<f32>()
+                        .map_err(|_| "fps must be a positive number".to_owned())?;
+                    if !fps.is_finite() || fps <= 0.0 {
+                        return Err("fps must be a positive finite number".to_owned());
+                    }
+                }
+                "--backend" => *backend = parse_backend(&required_value(args, "--backend")?)?,
+                _ => return Err(format!("unknown particles argument: {argument}")),
+            }
+        }
+        Ok(Self {
+            output: output.ok_or_else(|| "particles requires --output <path>".to_owned())?,
+            width,
+            height,
+            count,
+            seed,
+            frame,
+            fps,
+        })
+    }
+}
+
 fn set_command(command: &mut Option<Command>, value: Command) -> Result<(), String> {
     if command.is_some() {
         return Err("only one command may be specified".into());
@@ -143,6 +230,15 @@ fn parse_dimension(name: &str, value: &str) -> Result<u32, String> {
         return Err(format!("{name} must be greater than zero"));
     }
     Ok(dimension)
+}
+
+fn parse_number<T>(name: &str, value: &str) -> Result<T, String>
+where
+    T: std::str::FromStr,
+{
+    value
+        .parse()
+        .map_err(|_| format!("invalid {name} '{value}'"))
 }
 
 fn parse_color(value: &str) -> Result<RgbaColor, String> {
@@ -180,7 +276,10 @@ fn print_help() {
     println!(
         "particle-render --gpu-info [--backend auto|dx12|vulkan]\n\
          particle-render still --output <path> [--width 1920] [--height 1080] \
-         [--color RRGGBB[AA]] [--backend auto|dx12|vulkan]"
+         [--color RRGGBB[AA]] [--backend auto|dx12|vulkan]\n\
+         particle-render particles --output <path> [--count 10000] [--seed 1] \
+         [--frame 0] [--fps 60] [--width 1920] [--height 1080] \
+         [--backend auto|dx12|vulkan]"
     );
 }
 
@@ -245,5 +344,34 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.contains("greater than zero"));
+    }
+
+    #[test]
+    fn parses_particle_options() {
+        let options = CliOptions::parse(
+            [
+                "particles",
+                "--output",
+                "particles.png",
+                "--count",
+                "1000000",
+                "--seed",
+                "9",
+                "--frame",
+                "4",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .unwrap();
+        assert!(matches!(
+            options.command,
+            Some(Command::Particles(ParticleOptions {
+                count: 1_000_000,
+                seed: 9,
+                frame: 4,
+                ..
+            }))
+        ));
     }
 }

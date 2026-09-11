@@ -158,35 +158,36 @@ struct Particle {
 
 ## Tasks
 
-- [ ] Define the Rust particle structure
-- [ ] Define the matching WGSL particle structure
-- [ ] Document memory layout assumptions
-- [ ] Add compile-time size assertions where practical
-- [ ] Allocate GPU storage buffers
-- [ ] Implement ping-pong simulation buffers
-- [ ] Write compute shader for:
-  - [ ] velocity integration
-  - [ ] position integration
-  - [ ] lifetime update
-- [ ] Initialize deterministic particle state from a seed
-- [ ] Render particles as points or camera-facing quads
-- [ ] Add basic camera matrices
-- [ ] Add frame uniforms:
-  - [ ] frame index
-  - [ ] delta time
-  - [ ] simulation time
-  - [ ] particle count
-- [ ] Render 10,000 particles
-- [ ] Render 100,000 particles
-- [ ] Render 1,000,000 particles
+- [x] Define the Rust particle structure
+- [x] Define the matching WGSL particle structure
+- [x] Document memory layout assumptions
+- [x] Add compile-time size assertions where practical
+- [x] Allocate GPU storage buffers
+- [x] Implement ping-pong simulation buffers
+- [x] Write compute shader for:
+  - [x] velocity integration
+  - [x] position integration
+  - [x] lifetime update
+- [x] Initialize deterministic particle state from a seed
+- [x] Render particles as points or camera-facing quads
+- [x] Add basic camera matrices
+- [x] Add frame uniforms:
+  - [x] frame index
+  - [x] delta time
+  - [x] simulation time
+  - [x] particle count
+- [x] Render 10,000 particles
+- [x] Render 100,000 particles
+- [x] Render 1,000,000 particles
 
 ## Acceptance Criteria
 
-- [ ] 10k particles simulate entirely on GPU
-- [ ] 100k particles render correctly
-- [ ] 1M particles render correctly
-- [ ] Particle state is not read back to CPU during normal simulation
-- [ ] Simulation is deterministic for a fixed seed and frame sequence
+- [x] 10k particles simulate entirely on GPU
+- [x] 100k particles render correctly
+- [x] 1M particles render correctly
+- [x] Particle state is not read back to CPU during normal simulation
+- [x] Simulation is deterministic for a fixed seed and frame sequence
+  - Repeated 100k-particle renders produced identical SHA-256 image hashes.
 
 ---
 

@@ -112,25 +112,27 @@ Render a frame without a window and save it to disk.
 
 ## Tasks
 
-- [ ] Add an offscreen render target abstraction
-- [ ] Render a clear color into a texture
-- [ ] Add GPU-to-CPU texture readback
-- [ ] Handle row padding correctly
-- [ ] Save output as PNG
-- [ ] Add CLI command:
-  - [ ] `particle-render still --output frame.png`
-- [ ] Add render width / height arguments
-- [ ] Add a basic color parameter to validate project-to-render plumbing
-- [ ] Reuse GPU resources between repeated renders where possible
+- [x] Add an offscreen render target abstraction
+- [x] Render a clear color into a texture
+- [x] Add GPU-to-CPU texture readback
+- [x] Handle row padding correctly
+- [x] Save output as PNG
+- [x] Add CLI command:
+  - [x] `particle-render still --output frame.png`
+- [x] Add render width / height arguments
+- [x] Add a basic color parameter to validate project-to-render plumbing
+- [x] Reuse GPU resources between repeated renders where possible
+  - `OffscreenRenderTarget` retains its texture and staging buffer for reuse at a fixed resolution.
 
 ## Acceptance Criteria
 
-- [ ] CLI renders a valid PNG
-- [ ] Arbitrary dimensions work
-- [ ] 1920x1080 renders successfully
-- [ ] 3840x2160 renders successfully
-- [ ] No window is created
-- [ ] Repeated still renders do not leak memory
+- [x] CLI renders a valid PNG
+- [x] Arbitrary dimensions work
+- [x] 1920x1080 renders successfully
+- [x] 3840x2160 renders successfully
+- [x] No window is created
+- [x] Repeated still renders do not leak memory
+  - Rendering reuses owned GPU resources and balances every buffer map with an unmap.
 
 ---
 
@@ -1095,7 +1097,7 @@ These are the recommended next actions from the current state.
 - [x] Add the initial crate structure
 - [x] Move the working GPU smoke test into `render-core`
 - [x] Add `particle-render --gpu-info`
-- [ ] Implement the first headless offscreen PNG render
-- [ ] Commit the baseline before starting particle simulation
+- [x] Implement the first headless offscreen PNG render
+- [x] Commit the baseline before starting particle simulation
 
 Do not start Tauri UI work before the headless offscreen path is stable.

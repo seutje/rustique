@@ -31,6 +31,12 @@ Print information about the preferred high-performance GPU with:
 cargo run -p particle-render -- --gpu-info
 ```
 
+Render a headless still image (the color accepts `RRGGBB` or `RRGGBBAA`):
+
+```bash
+cargo run -p particle-render -- still --output frame.png --width 1920 --height 1080 --color 204080
+```
+
 To force a supported backend, add `--backend dx12` or `--backend vulkan`.
 
 The future desktop editor belongs under `apps/desktop`; the render core and CLI do not depend on Tauri or a window.

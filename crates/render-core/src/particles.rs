@@ -1,13 +1,14 @@
 use std::{path::Path, sync::mpsc, time::Instant};
 
 use bytemuck::{Pod, Zeroable};
-use simulation::{Particle, SimulationTiming, initialize_particles};
+use simulation::{Force, GpuForce, Particle, SimulationTiming, initialize_particles};
 use thiserror::Error;
 use wgpu::util::DeviceExt;
 
 use crate::{GpuContext, OffscreenError, OffscreenRenderTarget, RgbaColor};
 
 const PARTICLE_SHADER: &str = include_str!("../../../shaders/particles/particles.wgsl");
+const MAX_FORCE_COUNT: usize = 32;
 
 /// Per-frame inputs shared by compute and render shaders (32 bytes).
 #[repr(C)]
@@ -22,7 +23,8 @@ pub struct FrameUniforms {
     pub particle_size_pixels: f32,
     pub position_scale: f32,
     pub simulation_seed: u32,
-    padding: [u32; 3],
+    pub force_count: u32,
+    padding: [u32; 2],
 }
 
 const _: () = assert!(size_of::<FrameUniforms>() == 112);
@@ -56,6 +58,8 @@ pub enum ParticleRenderError {
     TimingCallbackDropped,
     #[error("GPU timing readback failed: {0}")]
     TimingMap(#[from] wgpu::BufferAsyncError),
+    #[error("force count {count} exceeds the maximum of {maximum}")]
+    TooManyForces { count: usize, maximum: usize },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -70,6 +74,7 @@ pub struct ParticleRenderer {
     particle_count: u32,
     buffers: [wgpu::Buffer; 2],
     uniform_buffer: wgpu::Buffer,
+    force_buffer: wgpu::Buffer,
     bind_groups: [wgpu::BindGroup; 2],
     compute_pipeline: wgpu::ComputePipeline,
     render_pipeline: wgpu::RenderPipeline,
@@ -77,6 +82,7 @@ pub struct ParticleRenderer {
     timing: Option<TimingResources>,
     seed: u64,
     timeline_frame: u32,
+    force_count: u32,
 }
 
 struct TimingResources {
@@ -126,6 +132,12 @@ impl ParticleRenderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let force_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("particle-forces"),
+            size: (MAX_FORCE_COUNT * size_of::<GpuForce>()) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let layout = context
             .device
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -147,6 +159,7 @@ impl ParticleRenderer {
                         },
                         count: None,
                     },
+                    storage_entry(3, true, wgpu::ShaderStages::COMPUTE),
                 ],
             });
         let bind_groups = [
@@ -156,6 +169,7 @@ impl ParticleRenderer {
                 &buffers[0],
                 &buffers[1],
                 &uniform_buffer,
+                &force_buffer,
                 "particle-bind-a-b",
             ),
             make_bind_group(
@@ -164,6 +178,7 @@ impl ParticleRenderer {
                 &buffers[1],
                 &buffers[0],
                 &uniform_buffer,
+                &force_buffer,
                 "particle-bind-b-a",
             ),
         ];
@@ -227,6 +242,7 @@ impl ParticleRenderer {
             particle_count,
             buffers,
             uniform_buffer,
+            force_buffer,
             bind_groups,
             compute_pipeline,
             render_pipeline,
@@ -234,6 +250,7 @@ impl ParticleRenderer {
             timing: create_timing_resources(context),
             seed,
             timeline_frame: 0,
+            force_count: 0,
         })
     }
 
@@ -257,6 +274,36 @@ impl ParticleRenderer {
         }
         self.source_index = 0;
         self.timeline_frame = 0;
+    }
+
+    /// Uploads an ordered list of forces reused by subsequent simulation steps.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when more than 32 force entries are supplied.
+    pub fn set_forces(
+        &mut self,
+        context: &GpuContext,
+        forces: &[Force],
+    ) -> Result<(), ParticleRenderError> {
+        if forces.len() > MAX_FORCE_COUNT {
+            return Err(ParticleRenderError::TooManyForces {
+                count: forces.len(),
+                maximum: MAX_FORCE_COUNT,
+            });
+        }
+        let gpu_forces: Vec<GpuForce> = forces.iter().map(GpuForce::from).collect();
+        if !gpu_forces.is_empty() {
+            context
+                .queue
+                .write_buffer(&self.force_buffer, 0, bytemuck::cast_slice(&gpu_forces));
+        }
+        self.force_count =
+            u32::try_from(gpu_forces.len()).map_err(|_| ParticleRenderError::TooManyForces {
+                count: forces.len(),
+                maximum: MAX_FORCE_COUNT,
+            })?;
+        Ok(())
     }
 
     /// Deterministically seeks to and renders an offline timeline frame.
@@ -293,7 +340,8 @@ impl ParticleRenderer {
                     particle_size_pixels: 2.0,
                     position_scale: 1.0,
                     simulation_seed: seed_u32(self.seed),
-                    padding: [0; 3],
+                    force_count: self.force_count,
+                    padding: [0; 2],
                 };
                 context
                     .queue
@@ -330,7 +378,8 @@ impl ParticleRenderer {
             particle_size_pixels: 2.0,
             position_scale: 1.0,
             simulation_seed: seed_u32(self.seed),
-            padding: [0; 3],
+            force_count: self.force_count,
+            padding: [0; 2],
         };
         context
             .queue
@@ -409,7 +458,8 @@ impl ParticleRenderer {
             particle_size_pixels: config.particle_size_pixels,
             position_scale: config.position_scale,
             simulation_seed: seed_u32(self.seed),
-            padding: [0; 3],
+            force_count: self.force_count,
+            padding: [0; 2],
         };
         context
             .queue
@@ -509,7 +559,8 @@ impl ParticleRenderer {
             particle_size_pixels: 2.0,
             position_scale: 1.0,
             simulation_seed: seed_u32(self.seed),
-            padding: [0; 3],
+            force_count: self.force_count,
+            padding: [0; 2],
         };
         context
             .queue
@@ -661,6 +712,7 @@ fn make_bind_group(
     source: &wgpu::Buffer,
     destination: &wgpu::Buffer,
     uniforms: &wgpu::Buffer,
+    forces: &wgpu::Buffer,
     label: &str,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -670,6 +722,10 @@ fn make_bind_group(
             wgpu::BindGroupEntry {
                 binding: 0,
                 resource: source.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: forces.as_entire_binding(),
             },
             wgpu::BindGroupEntry {
                 binding: 1,

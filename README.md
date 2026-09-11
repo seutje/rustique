@@ -49,6 +49,8 @@ cargo run -p particle-render --release -- particles --output particles.png --cou
 Use `--substeps N` to select deterministic fixed simulation substeps. Arbitrary
 frame requests replay from frame zero; see [`docs/DETERMINISM.md`](docs/DETERMINISM.md).
 
+Try the data-driven force stacks with `--motion orbit` or `--motion swirl`.
+
 Run the reproducible RTX scale benchmark (or select one preset with `--count`):
 
 ```bash

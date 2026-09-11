@@ -1,6 +1,7 @@
 //! GPU-compatible particle simulation data.
 
 use bytemuck::{Pod, Zeroable};
+use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
 
 /// Particle state shared verbatim with WGSL storage buffers.
@@ -23,6 +24,156 @@ pub struct SimulationTiming {
     project_fps: NonZeroU32,
     preview_fps: NonZeroU32,
     substeps: NonZeroU32,
+}
+
+/// Data-driven forces evaluated in list order by the GPU simulation.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Force {
+    Gravity {
+        acceleration: [f32; 3],
+    },
+    PointAttractor {
+        position: [f32; 3],
+        strength: f32,
+    },
+    PointRepulsor {
+        position: [f32; 3],
+        strength: f32,
+    },
+    Vortex {
+        center: [f32; 3],
+        strength: f32,
+    },
+    Drag {
+        coefficient: f32,
+    },
+    SphereConstraint {
+        center: [f32; 3],
+        radius: f32,
+        bounce: f32,
+    },
+    DirectionalNoise {
+        strength: f32,
+        frequency: f32,
+    },
+    CurlNoise {
+        strength: f32,
+        frequency: f32,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RespawnPolicy {
+    Loop,
+    Hold,
+    Remove,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Emitter {
+    Burst {
+        count: u32,
+        frame: u32,
+        respawn: RespawnPolicy,
+    },
+    Continuous {
+        particles_per_second: f32,
+        respawn: RespawnPolicy,
+    },
+}
+
+impl Emitter {
+    /// Returns the deterministic number of particles emitted by a timeline frame.
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    pub fn emitted_count(&self, frame: u32, project_fps: NonZeroU32) -> u32 {
+        match *self {
+            Self::Burst {
+                count,
+                frame: burst_frame,
+                ..
+            } => {
+                if frame >= burst_frame {
+                    count
+                } else {
+                    0
+                }
+            }
+            Self::Continuous {
+                particles_per_second,
+                ..
+            } => {
+                let seconds = f64::from(frame) / f64::from(project_fps.get());
+                (f64::from(particles_per_second.max(0.0)) * seconds)
+                    .floor()
+                    .min(f64::from(u32::MAX)) as u32
+            }
+        }
+    }
+
+    #[must_use]
+    pub const fn respawn_policy(&self) -> RespawnPolicy {
+        match self {
+            Self::Burst { respawn, .. } | Self::Continuous { respawn, .. } => *respawn,
+        }
+    }
+}
+
+/// Storage-buffer representation mirrored by `particles.wgsl` (48 bytes).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct GpuForce {
+    pub kind: [u32; 4],
+    pub primary: [f32; 4],
+    pub secondary: [f32; 4],
+}
+
+const _: () = assert!(size_of::<GpuForce>() == 48);
+
+impl From<&Force> for GpuForce {
+    fn from(force: &Force) -> Self {
+        match *force {
+            Force::Gravity { acceleration } => Self::new(0, extend(acceleration, 0.0), [0.0; 4]),
+            Force::PointAttractor { position, strength } => {
+                Self::new(1, extend(position, strength), [0.0; 4])
+            }
+            Force::PointRepulsor { position, strength } => {
+                Self::new(2, extend(position, strength), [0.0; 4])
+            }
+            Force::Vortex { center, strength } => Self::new(3, extend(center, strength), [0.0; 4]),
+            Force::Drag { coefficient } => Self::new(4, [coefficient, 0.0, 0.0, 0.0], [0.0; 4]),
+            Force::SphereConstraint {
+                center,
+                radius,
+                bounce,
+            } => Self::new(5, extend(center, radius), [bounce, 0.0, 0.0, 0.0]),
+            Force::DirectionalNoise {
+                strength,
+                frequency,
+            } => Self::new(6, [strength, frequency, 0.0, 0.0], [0.0; 4]),
+            Force::CurlNoise {
+                strength,
+                frequency,
+            } => Self::new(7, [strength, frequency, 0.0, 0.0], [0.0; 4]),
+        }
+    }
+}
+
+const fn extend(value: [f32; 3], fourth: f32) -> [f32; 4] {
+    [value[0], value[1], value[2], fourth]
+}
+
+impl GpuForce {
+    const fn new(kind: u32, primary: [f32; 4], secondary: [f32; 4]) -> Self {
+        Self {
+            kind: [kind, 0, 0, 0],
+            primary,
+            secondary,
+        }
+    }
 }
 
 impl SimulationTiming {
@@ -143,5 +294,34 @@ mod tests {
         assert!((timing.frame_time(120) - 2.0).abs() < f32::EPSILON);
         assert!((timing.substep_delta() - 1.0 / 120.0).abs() < f32::EPSILON);
         assert_eq!(timing.preview_fps(), 30);
+    }
+
+    #[test]
+    fn emitters_have_deterministic_schedules() {
+        let fps = NonZeroU32::new(60).unwrap();
+        let burst = Emitter::Burst {
+            count: 500,
+            frame: 10,
+            respawn: RespawnPolicy::Loop,
+        };
+        assert_eq!(burst.emitted_count(9, fps), 0);
+        assert_eq!(burst.emitted_count(10, fps), 500);
+        let continuous = Emitter::Continuous {
+            particles_per_second: 120.0,
+            respawn: RespawnPolicy::Hold,
+        };
+        assert_eq!(continuous.emitted_count(90, fps), 180);
+    }
+
+    #[test]
+    fn force_parameters_are_serializable_data() {
+        let force = Force::PointAttractor {
+            position: [1.0, 2.0, 3.0],
+            strength: 0.5,
+        };
+        let json = serde_json::to_string(&force).unwrap();
+        assert!(json.contains("point_attractor"));
+        assert_eq!(serde_json::from_str::<Force>(&json).unwrap(), force);
+        assert_eq!(size_of::<GpuForce>(), 48);
     }
 }

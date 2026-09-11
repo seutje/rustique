@@ -4,7 +4,7 @@ use render_core::{
     BackendPreference, BenchmarkConfig, GpuConfig, GpuContext, OffscreenRenderTarget,
     ParticleRenderer, RgbaColor,
 };
-use simulation::SimulationTiming;
+use simulation::{Force, SimulationTiming};
 
 const BENCHMARK_COUNTS: [u32; 7] = [
     100_000, 500_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000, 20_000_000,
@@ -54,6 +54,9 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
                 .map_err(|error| format!("failed to create offscreen target: {error}"))?;
             let mut renderer = ParticleRenderer::new(&context, particles.count, particles.seed)
                 .map_err(|error| format!("failed to create particle renderer: {error}"))?;
+            renderer
+                .set_forces(&context, particles.motion.forces())
+                .map_err(|error| format!("failed to configure forces: {error}"))?;
             let timing = SimulationTiming::new(
                 NonZeroU32::new(particles.fps)
                     .ok_or_else(|| "fps must be greater than zero".to_owned())?,
@@ -118,6 +121,51 @@ struct ParticleOptions {
     frame: u32,
     fps: u32,
     substeps: u32,
+    motion: MotionPreset,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+enum MotionPreset {
+    #[default]
+    None,
+    Orbit,
+    Swirl,
+}
+
+impl MotionPreset {
+    fn forces(self) -> &'static [Force] {
+        const ORBIT: &[Force] = &[
+            Force::PointAttractor {
+                position: [0.0; 3],
+                strength: 0.08,
+            },
+            Force::Vortex {
+                center: [0.0; 3],
+                strength: 0.2,
+            },
+            Force::Drag { coefficient: 0.02 },
+        ];
+        const SWIRL: &[Force] = &[
+            Force::CurlNoise {
+                strength: 0.3,
+                frequency: 4.0,
+            },
+            Force::Vortex {
+                center: [0.0; 3],
+                strength: 0.12,
+            },
+            Force::SphereConstraint {
+                center: [0.0; 3],
+                radius: 0.95,
+                bounce: 0.8,
+            },
+        ];
+        match self {
+            Self::None => &[],
+            Self::Orbit => ORBIT,
+            Self::Swirl => SWIRL,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -208,6 +256,7 @@ impl ParticleOptions {
         let mut frame = 0;
         let mut fps = 60;
         let mut substeps = 1;
+        let mut motion = MotionPreset::None;
         while let Some(argument) = args.next() {
             match argument.as_str() {
                 "--output" => output = Some(PathBuf::from(required_value(args, "--output")?)),
@@ -222,6 +271,7 @@ impl ParticleOptions {
                 "--substeps" => {
                     substeps = parse_dimension("substeps", &required_value(args, "--substeps")?)?;
                 }
+                "--motion" => motion = parse_motion(&required_value(args, "--motion")?)?,
                 "--backend" => *backend = parse_backend(&required_value(args, "--backend")?)?,
                 _ => return Err(format!("unknown particles argument: {argument}")),
             }
@@ -235,6 +285,7 @@ impl ParticleOptions {
             frame,
             fps,
             substeps,
+            motion,
         })
     }
 }
@@ -353,6 +404,17 @@ fn parse_positive_float(name: &str, value: &str) -> Result<f32, String> {
     }
 }
 
+fn parse_motion(value: &str) -> Result<MotionPreset, String> {
+    match value {
+        "none" => Ok(MotionPreset::None),
+        "orbit" => Ok(MotionPreset::Orbit),
+        "swirl" => Ok(MotionPreset::Swirl),
+        _ => Err(format!(
+            "unknown motion preset '{value}'; expected none, orbit, or swirl"
+        )),
+    }
+}
+
 fn set_command(command: &mut Option<Command>, value: Command) -> Result<(), String> {
     if command.is_some() {
         return Err("only one command may be specified".into());
@@ -422,7 +484,8 @@ fn print_help() {
          particle-render still --output <path> [--width 1920] [--height 1080] \
          [--color RRGGBB[AA]] [--backend auto|dx12|vulkan]\n\
          particle-render particles --output <path> [--count 10000] [--seed 1] \
-         [--frame 0] [--fps 60] [--substeps 1] [--width 1920] [--height 1080] \
+         [--frame 0] [--fps 60] [--substeps 1] [--motion none|orbit|swirl] \
+         [--width 1920] [--height 1080] \
          [--backend auto|dx12|vulkan]\n\
          particle-render benchmark [--count N] [--frames 10] [--width 1920] \
          [--height 1080] [--particle-size 2] [--overdraw] [--readback] \

@@ -270,27 +270,27 @@ Build a reusable library of GPU force passes.
 
 ## Tasks
 
-- [ ] Add gravity force
-- [ ] Add point attractor
-- [ ] Add point repulsor
-- [ ] Add vortex / orbital force
-- [ ] Add drag
-- [ ] Add bounded box or sphere constraint
-- [ ] Add noise-based directional field
-- [ ] Add curl-noise approximation
-- [ ] Add emitter abstraction
-- [ ] Add burst emitter
-- [ ] Add continuous emitter
-- [ ] Add respawn policies
-- [ ] Make force parameters serializable
-- [ ] Allow multiple force passes in a system
+- [x] Add gravity force
+- [x] Add point attractor
+- [x] Add point repulsor
+- [x] Add vortex / orbital force
+- [x] Add drag
+- [x] Add bounded box or sphere constraint
+- [x] Add noise-based directional field
+- [x] Add curl-noise approximation
+- [x] Add emitter abstraction
+- [x] Add burst emitter
+- [x] Add continuous emitter
+- [x] Add respawn policies
+- [x] Make force parameters serializable
+- [x] Allow multiple force passes in a system
 
 ## Acceptance Criteria
 
-- [ ] A star-orbit style simulation is possible
-- [ ] A swirling field simulation is possible
-- [ ] Force parameters are data-driven
-- [ ] No force requires UI-specific code
+- [x] A star-orbit style simulation is possible
+- [x] A swirling field simulation is possible
+- [x] Force parameters are data-driven
+- [x] No force requires UI-specific code
 
 ---
 

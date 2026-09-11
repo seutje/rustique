@@ -24,15 +24,21 @@ pub struct FrameUniforms {
     pub position_scale: f32,
     pub simulation_seed: u32,
     pub force_count: u32,
-    padding: [u32; 2],
+    pub force_scale: f32,
+    pub brightness: f32,
+    pub active_particle_count: u32,
+    padding: [u32; 3],
 }
 
-const _: () = assert!(size_of::<FrameUniforms>() == 112);
+const _: () = assert!(size_of::<FrameUniforms>() == 128);
 
 #[derive(Clone, Copy, Debug)]
 pub struct BenchmarkConfig {
     pub particle_size_pixels: f32,
     pub position_scale: f32,
+    pub force_scale: f32,
+    pub brightness: f32,
+    pub active_particle_count: Option<u32>,
 }
 
 impl Default for BenchmarkConfig {
@@ -40,6 +46,9 @@ impl Default for BenchmarkConfig {
         Self {
             particle_size_pixels: 2.0,
             position_scale: 1.0,
+            force_scale: 1.0,
+            brightness: 1.0,
+            active_particle_count: None,
         }
     }
 }
@@ -342,7 +351,13 @@ impl ParticleRenderer {
                     position_scale: render_config.position_scale,
                     simulation_seed: seed_u32(self.seed),
                     force_count: self.force_count,
-                    padding: [0; 2],
+                    force_scale: render_config.force_scale,
+                    brightness: render_config.brightness,
+                    active_particle_count: render_config
+                        .active_particle_count
+                        .unwrap_or(self.particle_count)
+                        .min(self.particle_count),
+                    padding: [0; 3],
                 };
                 context
                     .queue
@@ -380,7 +395,13 @@ impl ParticleRenderer {
             position_scale: render_config.position_scale,
             simulation_seed: seed_u32(self.seed),
             force_count: self.force_count,
-            padding: [0; 2],
+            force_scale: render_config.force_scale,
+            brightness: render_config.brightness,
+            active_particle_count: render_config
+                .active_particle_count
+                .unwrap_or(self.particle_count)
+                .min(self.particle_count),
+            padding: [0; 3],
         };
         context
             .queue
@@ -463,7 +484,13 @@ impl ParticleRenderer {
             position_scale: config.position_scale,
             simulation_seed: seed_u32(self.seed),
             force_count: self.force_count,
-            padding: [0; 2],
+            force_scale: config.force_scale,
+            brightness: config.brightness,
+            active_particle_count: config
+                .active_particle_count
+                .unwrap_or(self.particle_count)
+                .min(self.particle_count),
+            padding: [0; 3],
         };
         context
             .queue
@@ -564,7 +591,10 @@ impl ParticleRenderer {
             position_scale: 1.0,
             simulation_seed: seed_u32(self.seed),
             force_count: self.force_count,
-            padding: [0; 2],
+            force_scale: 1.0,
+            brightness: 1.0,
+            active_particle_count: self.particle_count,
+            padding: [0; 3],
         };
         context
             .queue

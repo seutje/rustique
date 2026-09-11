@@ -17,8 +17,10 @@ struct FrameUniforms {
     position_scale: f32,
     simulation_seed: u32,
     force_count: u32,
-    _padding0: u32,
-    _padding1: u32,
+    force_scale: f32,
+    brightness: f32,
+    active_particle_count: u32,
+    _padding: u32,
 }
 
 struct Force {
@@ -44,32 +46,36 @@ fn random_unit(value: u32) -> f32 {
 fn update(@builtin(global_invocation_id) id: vec3<u32>) {
     let index = id.x + id.y * 65535u * 256u;
     if (index >= frame.particle_count) { return; }
+    if (index >= frame.active_particle_count) {
+        particles_out[index] = particles_in[index];
+        return;
+    }
     var particle = particles_in[index];
     var velocity = particle.velocity_lifetime.xyz;
     for (var force_index = 0u; force_index < frame.force_count; force_index++) {
         let force = forces[force_index];
         if (force.kind.x == 0u) {
-            velocity += force.primary.xyz * frame.delta_time;
+            velocity += force.primary.xyz * frame.force_scale * frame.delta_time;
         } else if (force.kind.x == 1u || force.kind.x == 2u) {
             let offset = force.primary.xyz - particle.position_age.xyz;
             let distance_squared = max(dot(offset, offset), 0.0001);
             let direction = offset * inverseSqrt(distance_squared);
             let polarity = select(-1.0, 1.0, force.kind.x == 1u);
-            velocity += direction * force.primary.w * polarity / distance_squared * frame.delta_time;
+            velocity += direction * force.primary.w * frame.force_scale * polarity / distance_squared * frame.delta_time;
         } else if (force.kind.x == 3u) {
             let offset = particle.position_age.xyz - force.primary.xyz;
             let tangent = normalize(vec3<f32>(-offset.y, offset.x, 0.0) + vec3<f32>(0.00001, 0.0, 0.0));
-            velocity += tangent * force.primary.w * frame.delta_time;
+            velocity += tangent * force.primary.w * frame.force_scale * frame.delta_time;
         } else if (force.kind.x == 4u) {
             velocity *= max(0.0, 1.0 - force.primary.x * frame.delta_time);
         } else if (force.kind.x == 6u) {
             let phase = particle.position_age * force.primary.y + vec4<f32>(frame.simulation_time);
             let direction = normalize(vec3<f32>(sin(phase.x + phase.y), cos(phase.y + phase.z), sin(phase.z + phase.x)));
-            velocity += direction * force.primary.x * frame.delta_time;
+            velocity += direction * force.primary.x * frame.force_scale * frame.delta_time;
         } else if (force.kind.x == 7u) {
             let p = particle.position_age.xyz * force.primary.y + vec3<f32>(frame.simulation_time);
             let curl = vec3<f32>(cos(p.y) - cos(p.z), cos(p.z) - cos(p.x), cos(p.x) - cos(p.y));
-            velocity += curl * force.primary.x * frame.delta_time;
+            velocity += curl * force.primary.x * frame.force_scale * frame.delta_time;
         }
     }
     particle.velocity_lifetime = vec4<f32>(velocity, particle.velocity_lifetime.w);
@@ -119,8 +125,11 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
     let offset = corners[index % 6u] * frame.particle_size_pixels / frame.viewport_size;
     var position = frame.view_projection * vec4<f32>(particle.position_age.xyz * frame.position_scale, 1.0);
     position = vec4<f32>(position.xy + offset * position.w, position.zw);
+    if (index / 6u >= frame.active_particle_count) {
+        position = vec4<f32>(2.0, 2.0, 2.0, 1.0);
+    }
     output.position = position;
-    output.color = particle.color;
+    output.color = vec4<f32>(particle.color.rgb * frame.brightness, particle.color.a);
     return output;
 }
 

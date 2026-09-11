@@ -1,7 +1,7 @@
 use std::{env, num::NonZeroU32, path::PathBuf, process::ExitCode, time::Instant};
 
 use audio_engine::{AnalysisConfig, analyze_cached};
-use project_format::ProjectV1;
+use project_format::{EnvelopeSmoother, ProjectV1, evaluate_mappings};
 use render_core::{
     BackendPreference, BenchmarkConfig, GpuConfig, GpuContext, OffscreenRenderTarget,
     ParticleRenderer, RgbaColor,
@@ -30,6 +30,9 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
     }
     if let Some(Command::AudioInfo(audio)) = &options.command {
         return run_audio_info(audio);
+    }
+    if let Some(Command::ModulationInfo(modulation)) = &options.command {
+        return run_modulation_info(modulation);
     }
     let context = pollster::block_on(GpuContext::new(GpuConfig {
         backend: options.backend,
@@ -96,6 +99,9 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
         }
         Some(Command::Benchmark(benchmark)) => run_benchmark(&context, &benchmark),
         Some(Command::AudioInfo(_)) => unreachable!("audio command returned before GPU setup"),
+        Some(Command::ModulationInfo(_)) => {
+            unreachable!("modulation command returned before GPU setup")
+        }
         None => Err("no command specified; use still, --gpu-info, or --help".into()),
     }
 }
@@ -114,6 +120,7 @@ enum Command {
     Particles(ParticleOptions),
     Benchmark(BenchmarkOptions),
     AudioInfo(AudioInfoOptions),
+    ModulationInfo(ModulationInfoOptions),
 }
 
 #[derive(Debug, PartialEq)]
@@ -200,6 +207,13 @@ struct AudioInfoOptions {
     time_seconds: f64,
 }
 
+#[derive(Debug, PartialEq)]
+struct ModulationInfoOptions {
+    project: PathBuf,
+    audio: PathBuf,
+    time_seconds: f64,
+}
+
 impl CliOptions {
     fn parse(mut args: impl Iterator<Item = String>) -> Result<Self, String> {
         let mut options = Self::default();
@@ -221,6 +235,10 @@ impl CliOptions {
                 "audio-info" => {
                     let audio = AudioInfoOptions::parse(&mut args)?;
                     set_command(&mut options.command, Command::AudioInfo(audio))?;
+                }
+                "modulation-info" => {
+                    let modulation = ModulationInfoOptions::parse(&mut args)?;
+                    set_command(&mut options.command, Command::ModulationInfo(modulation))?;
                 }
                 "-h" | "--help" => options.help = true,
                 "--backend" => {
@@ -397,6 +415,28 @@ impl AudioInfoOptions {
     }
 }
 
+impl ModulationInfoOptions {
+    fn parse(args: &mut impl Iterator<Item = String>) -> Result<Self, String> {
+        let project = PathBuf::from(required_value(args, "modulation-info project")?);
+        let audio = PathBuf::from(required_value(args, "modulation-info audio")?);
+        let mut time_seconds = 0.0;
+        while let Some(argument) = args.next() {
+            match argument.as_str() {
+                "--time" => {
+                    time_seconds =
+                        parse_non_negative_float("time", &required_value(args, "--time")?)?;
+                }
+                _ => return Err(format!("unknown modulation-info argument: {argument}")),
+            }
+        }
+        Ok(Self {
+            project,
+            audio,
+            time_seconds,
+        })
+    }
+}
+
 fn run_audio_info(options: &AudioInfoOptions) -> Result<(), String> {
     let analysis = analyze_cached(&options.input, AnalysisConfig::default())
         .map_err(|error| format!("audio analysis failed: {error}"))?;
@@ -426,6 +466,54 @@ fn run_audio_info(options: &AudioInfoOptions) -> Result<(), String> {
     Ok(())
 }
 
+#[allow(clippy::cast_precision_loss)]
+fn run_modulation_info(options: &ModulationInfoOptions) -> Result<(), String> {
+    let project = ProjectV1::load(&options.project).map_err(|error| error.to_string())?;
+    let analysis = analyze_cached(&options.audio, AnalysisConfig::default())
+        .map_err(|error| error.to_string())?;
+    let mut smoothers = vec![EnvelopeSmoother::default(); project.modulation_mappings.len()];
+    let delta = analysis.hop_size as f32 / analysis.sample_rate as f32;
+    let mut active = Vec::new();
+    for features in analysis
+        .frames
+        .iter()
+        .take_while(|frame| frame.time_seconds <= options.time_seconds)
+    {
+        active = evaluate_mappings(
+            &project.modulation_mappings,
+            &mut smoothers,
+            *features,
+            delta,
+        );
+    }
+    if active.is_empty() {
+        active = evaluate_mappings(
+            &project.modulation_mappings,
+            &mut smoothers,
+            analysis.sample_at(options.time_seconds),
+            delta,
+        );
+    }
+    for value in active {
+        println!(
+            "target={:?} source={:.4} value={:.4}",
+            value.target, value.source_value, value.output_value
+        );
+    }
+    Ok(())
+}
+
+fn parse_non_negative_float(name: &str, value: &str) -> Result<f64, String> {
+    let parsed = value
+        .parse::<f64>()
+        .map_err(|_| format!("invalid {name} '{value}'"))?;
+    if parsed.is_finite() && parsed >= 0.0 {
+        Ok(parsed)
+    } else {
+        Err(format!("{name} must be non-negative and finite"))
+    }
+}
+
 fn run_benchmark(context: &GpuContext, options: &BenchmarkOptions) -> Result<(), String> {
     let counts: Vec<u32> = options
         .count
@@ -452,6 +540,7 @@ fn run_benchmark(context: &GpuContext, options: &BenchmarkOptions) -> Result<(),
                     BenchmarkConfig {
                         particle_size_pixels: options.particle_size,
                         position_scale: if options.overdraw { 0.02 } else { 1.0 },
+                        ..BenchmarkConfig::default()
                     },
                 )
                 .map_err(|error| error.to_string())?;
@@ -514,6 +603,7 @@ fn render_project_still(
             BenchmarkConfig {
                 particle_size_pixels: project.render_defaults.particle_size_pixels,
                 position_scale: 1.0,
+                ..BenchmarkConfig::default()
             },
             RgbaColor::new(background[0], background[1], background[2], background[3]),
             &options.output,
@@ -628,7 +718,8 @@ fn print_help() {
          particle-render benchmark [--count N] [--frames 10] [--width 1920] \
          [--height 1080] [--particle-size 2] [--overdraw] [--readback] \
          [--backend auto|dx12|vulkan]\n\
-         particle-render audio-info <audio-path> [--time seconds]"
+         particle-render audio-info <audio-path> [--time seconds]\n\
+         particle-render modulation-info <project.json> <audio-path> [--time seconds]"
     );
 }
 

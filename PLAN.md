@@ -376,34 +376,34 @@ Make visual parameters react to audio features in a reusable way.
 
 ## Tasks
 
-- [ ] Define modulation source enum
-- [ ] Define modulation target identifiers
-- [ ] Define mapping structure:
-  - [ ] source
-  - [ ] target
-  - [ ] amount
-  - [ ] offset
-  - [ ] min
-  - [ ] max
-  - [ ] polarity
-  - [ ] curve
-  - [ ] attack
-  - [ ] release
-- [ ] Implement envelope smoothing
-- [ ] Implement linear curve
-- [ ] Implement exponential curve
-- [ ] Implement inverted mapping
-- [ ] Map bass to force strength
-- [ ] Map highs to brightness or particle size
-- [ ] Map transients to burst emission
-- [ ] Serialize mappings in project format
-- [ ] Add logging/debug output for active modulation values
+- [x] Define modulation source enum
+- [x] Define modulation target identifiers
+- [x] Define mapping structure:
+  - [x] source
+  - [x] target
+  - [x] amount
+  - [x] offset
+  - [x] min
+  - [x] max
+  - [x] polarity
+  - [x] curve
+  - [x] attack
+  - [x] release
+- [x] Implement envelope smoothing
+- [x] Implement linear curve
+- [x] Implement exponential curve
+- [x] Implement inverted mapping
+- [x] Map bass to force strength
+- [x] Map highs to brightness or particle size
+- [x] Map transients to burst emission
+- [x] Serialize mappings in project format
+- [x] Add logging/debug output for active modulation values
 
 ## Acceptance Criteria
 
-- [ ] At least three visual parameters can react to audio
-- [ ] Mapping behavior is independent from preset implementation
-- [ ] Audio reactivity is deterministic during offline rendering
+- [x] At least three visual parameters can react to audio
+- [x] Mapping behavior is independent from preset implementation
+- [x] Audio reactivity is deterministic during offline rendering
 
 ---
 

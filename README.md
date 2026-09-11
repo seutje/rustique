@@ -74,4 +74,7 @@ cargo run -p particle-render --release -- audio-info track.flac --time 12.5
 
 See [`docs/AUDIO.md`](docs/AUDIO.md) for formats, features, and cache behavior.
 
+Inspect a project's smoothed audio mappings with `modulation-info`; mapping
+semantics are documented in [`docs/MODULATION.md`](docs/MODULATION.md).
+
 The future desktop editor belongs under `apps/desktop`; the render core and CLI do not depend on Tauri or a window.

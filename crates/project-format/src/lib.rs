@@ -1,5 +1,12 @@
 //! Versioned, renderer-independent Rustique project representation.
 
+mod modulation;
+
+pub use modulation::{
+    ActiveModulation, EnvelopeSmoother, ModulatedParameters, ModulationCurve, ModulationMapping,
+    ModulationPolarity, ModulationSource, ModulationTarget, evaluate_mappings,
+};
+
 use serde::{Deserialize, Serialize};
 use simulation::{Emitter, Force};
 use std::{
@@ -23,6 +30,8 @@ pub struct ProjectV1 {
     pub forces: Vec<Force>,
     pub camera: CameraV1,
     pub render_defaults: RenderDefaultsV1,
+    #[serde(default)]
+    pub modulation_mappings: Vec<ModulationMapping>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -157,6 +166,25 @@ impl ProjectV1 {
                 "background channels must be finite values from 0 to 1".into(),
             ));
         }
+        for mapping in &self.modulation_mappings {
+            let values = [
+                mapping.amount,
+                mapping.offset,
+                mapping.minimum,
+                mapping.maximum,
+                mapping.attack_seconds,
+                mapping.release_seconds,
+            ];
+            if !values.iter().all(|value| value.is_finite())
+                || mapping.minimum > mapping.maximum
+                || mapping.attack_seconds < 0.0
+                || mapping.release_seconds < 0.0
+            {
+                return Err(ProjectError::Validation(
+                    "modulation values must be finite, min must not exceed max, and attack/release must be non-negative".into(),
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -209,6 +237,7 @@ mod tests {
                 particle_size_pixels: 2.0,
                 background: [0.0, 0.0, 0.0, 1.0],
             },
+            modulation_mappings: Vec::new(),
         }
     }
 

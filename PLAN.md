@@ -70,35 +70,37 @@ Turn the GPU smoke test into a reusable render-core library that owns wgpu initi
 
 ## Tasks
 
-- [ ] Move GPU initialization into `render-core`
-- [ ] Add explicit adapter selection preferring high-performance discrete GPUs
-- [ ] Log:
-  - [ ] adapter name
-  - [ ] backend
-  - [ ] device type
-  - [ ] driver info where available
-  - [ ] relevant wgpu limits
-  - [ ] relevant wgpu features
-- [ ] Add a `GpuContext` abstraction containing:
-  - [ ] instance
-  - [ ] adapter
-  - [ ] device
-  - [ ] queue
-- [ ] Make GPU initialization work without creating a window
-- [ ] Add structured error handling
-- [ ] Add unit-testable configuration types for backend preference
-- [ ] Add a CLI option in `particle-render` to print GPU info and exit
-- [ ] Add backend override support where practical:
-  - [ ] DX12
-  - [ ] Vulkan
+- [x] Move GPU initialization into `render-core`
+  - Replaced the placeholder smoke-test path with reusable headless initialization.
+- [x] Add explicit adapter selection preferring high-performance discrete GPUs
+- [x] Log:
+  - [x] adapter name
+  - [x] backend
+  - [x] device type
+  - [x] driver info where available
+  - [x] relevant wgpu limits
+  - [x] relevant wgpu features
+- [x] Add a `GpuContext` abstraction containing:
+  - [x] instance
+  - [x] adapter
+  - [x] device
+  - [x] queue
+- [x] Make GPU initialization work without creating a window
+- [x] Add structured error handling
+- [x] Add unit-testable configuration types for backend preference
+- [x] Add a CLI option in `particle-render` to print GPU info and exit
+- [x] Add backend override support where practical:
+  - [x] DX12
+  - [x] Vulkan
 
 ## Acceptance Criteria
 
-- [ ] `particle-render --gpu-info` prints useful adapter data
-- [ ] GPU initialization works headlessly
-- [ ] No Tauri dependency exists in `render-core`
-- [ ] Render core compiles on Windows
-- [ ] Code is ready to compile on Linux without Windows-only dependencies
+- [x] `particle-render --gpu-info` prints useful adapter data
+- [x] GPU initialization works headlessly
+- [x] No Tauri dependency exists in `render-core`
+- [x] Render core compiles on Windows
+- [x] Code is ready to compile on Linux without Windows-only dependencies
+  - Uses only cross-platform wgpu APIs; Vulkan can be selected explicitly.
 
 ---
 
@@ -1091,8 +1093,8 @@ These are the recommended next actions from the current state.
 
 - [x] Create the Rustique Cargo workspace
 - [x] Add the initial crate structure
-- [ ] Move the working GPU smoke test into `render-core`
-- [ ] Add `particle-render --gpu-info`
+- [x] Move the working GPU smoke test into `render-core`
+- [x] Add `particle-render --gpu-info`
 - [ ] Implement the first headless offscreen PNG render
 - [ ] Commit the baseline before starting particle simulation
 

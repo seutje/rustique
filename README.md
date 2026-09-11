@@ -25,11 +25,12 @@ cargo check --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-The placeholder CLI can be run with:
+Print information about the preferred high-performance GPU with:
 
 ```powershell
-cargo run -p particle-render
+cargo run -p particle-render -- --gpu-info
 ```
 
-The future desktop editor belongs under `apps/desktop`, but Phase 0 does not include Tauri or frontend dependencies.
+To force a supported backend, add `--backend dx12` or `--backend vulkan`.
 
+The future desktop editor belongs under `apps/desktop`; the render core and CLI do not depend on Tauri or a window.

@@ -1,7 +1,5 @@
-//! Shared rendering infrastructure for interactive and headless clients.
+//! Shared, window-independent rendering infrastructure.
 
-/// Returns the crate name for baseline workspace diagnostics.
-#[must_use]
-pub const fn crate_name() -> &'static str {
-    "render-core"
-}
+mod gpu;
+
+pub use gpu::{BackendPreference, GpuConfig, GpuContext, GpuInfo, GpuInitError};

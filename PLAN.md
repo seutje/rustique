@@ -337,34 +337,34 @@ Load a full track and generate reusable audio features.
 
 ## Tasks
 
-- [ ] Choose native audio decoding crate(s)
-- [ ] Support WAV
-- [ ] Support FLAC
-- [ ] Add optional MP3/AAC support if straightforward
-- [ ] Decode audio into analysis-friendly samples
-- [ ] Calculate waveform summary
-- [ ] Calculate RMS / loudness envelope
-- [ ] Calculate FFT windows
-- [ ] Calculate bands:
-  - [ ] sub
-  - [ ] bass
-  - [ ] low mids
-  - [ ] mids
-  - [ ] high mids
-  - [ ] highs
-- [ ] Calculate spectral centroid
-- [ ] Calculate spectral flux
-- [ ] Calculate basic transient strength
-- [ ] Normalize features
-- [ ] Cache analysis to disk
-- [ ] Add deterministic feature sampling by timestamp
-- [ ] Add CLI command to inspect audio features
+- [x] Choose native audio decoding crate(s)
+- [x] Support WAV
+- [x] Support FLAC
+- [x] Add optional MP3/AAC support if straightforward
+- [x] Decode audio into analysis-friendly samples
+- [x] Calculate waveform summary
+- [x] Calculate RMS / loudness envelope
+- [x] Calculate FFT windows
+- [x] Calculate bands:
+  - [x] sub
+  - [x] bass
+  - [x] low mids
+  - [x] mids
+  - [x] high mids
+  - [x] highs
+- [x] Calculate spectral centroid
+- [x] Calculate spectral flux
+- [x] Calculate basic transient strength
+- [x] Normalize features
+- [x] Cache analysis to disk
+- [x] Add deterministic feature sampling by timestamp
+- [x] Add CLI command to inspect audio features
 
 ## Acceptance Criteria
 
-- [ ] Audio file can be analyzed once and cached
-- [ ] Renderer can sample audio features at an arbitrary frame time
-- [ ] Re-rendering does not re-run expensive analysis unless cache is stale
+- [x] Audio file can be analyzed once and cached
+- [x] Renderer can sample audio features at an arbitrary frame time
+- [x] Re-rendering does not re-run expensive analysis unless cache is stale
 
 ---
 

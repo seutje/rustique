@@ -66,4 +66,12 @@ cargo run -p particle-render --release -- benchmark --frames 20
 See [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) for recorded baseline results and
 the `--particle-size`, `--overdraw`, and `--readback` stress-test options.
 
+Analyze and inspect cached audio features:
+
+```bash
+cargo run -p particle-render --release -- audio-info track.flac --time 12.5
+```
+
+See [`docs/AUDIO.md`](docs/AUDIO.md) for formats, features, and cache behavior.
+
 The future desktop editor belongs under `apps/desktop`; the render core and CLI do not depend on Tauri or a window.

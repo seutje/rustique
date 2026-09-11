@@ -1,5 +1,6 @@
 use std::{env, num::NonZeroU32, path::PathBuf, process::ExitCode, time::Instant};
 
+use audio_engine::{AnalysisConfig, analyze_cached};
 use project_format::ProjectV1;
 use render_core::{
     BackendPreference, BenchmarkConfig, GpuConfig, GpuContext, OffscreenRenderTarget,
@@ -26,6 +27,9 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
     if options.help {
         print_help();
         return Ok(());
+    }
+    if let Some(Command::AudioInfo(audio)) = &options.command {
+        return run_audio_info(audio);
     }
     let context = pollster::block_on(GpuContext::new(GpuConfig {
         backend: options.backend,
@@ -91,6 +95,7 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
             Ok(())
         }
         Some(Command::Benchmark(benchmark)) => run_benchmark(&context, &benchmark),
+        Some(Command::AudioInfo(_)) => unreachable!("audio command returned before GPU setup"),
         None => Err("no command specified; use still, --gpu-info, or --help".into()),
     }
 }
@@ -108,6 +113,7 @@ enum Command {
     Still(StillOptions),
     Particles(ParticleOptions),
     Benchmark(BenchmarkOptions),
+    AudioInfo(AudioInfoOptions),
 }
 
 #[derive(Debug, PartialEq)]
@@ -188,6 +194,12 @@ struct BenchmarkOptions {
     readback: bool,
 }
 
+#[derive(Debug, PartialEq)]
+struct AudioInfoOptions {
+    input: PathBuf,
+    time_seconds: f64,
+}
+
 impl CliOptions {
     fn parse(mut args: impl Iterator<Item = String>) -> Result<Self, String> {
         let mut options = Self::default();
@@ -205,6 +217,10 @@ impl CliOptions {
                 "benchmark" => {
                     let benchmark = BenchmarkOptions::parse(&mut args, &mut options.backend)?;
                     set_command(&mut options.command, Command::Benchmark(benchmark))?;
+                }
+                "audio-info" => {
+                    let audio = AudioInfoOptions::parse(&mut args)?;
+                    set_command(&mut options.command, Command::AudioInfo(audio))?;
                 }
                 "-h" | "--help" => options.help = true,
                 "--backend" => {
@@ -355,6 +371,59 @@ impl BenchmarkOptions {
         }
         Ok(result)
     }
+}
+
+impl AudioInfoOptions {
+    fn parse(args: &mut impl Iterator<Item = String>) -> Result<Self, String> {
+        let input = PathBuf::from(required_value(args, "audio-info")?);
+        let mut time_seconds = 0.0;
+        while let Some(argument) = args.next() {
+            match argument.as_str() {
+                "--time" => {
+                    time_seconds = required_value(args, "--time")?
+                        .parse::<f64>()
+                        .map_err(|_| "--time requires a non-negative number".to_owned())?;
+                    if !time_seconds.is_finite() || time_seconds < 0.0 {
+                        return Err("--time requires a non-negative finite number".into());
+                    }
+                }
+                _ => return Err(format!("unknown audio-info argument: {argument}")),
+            }
+        }
+        Ok(Self {
+            input,
+            time_seconds,
+        })
+    }
+}
+
+fn run_audio_info(options: &AudioInfoOptions) -> Result<(), String> {
+    let analysis = analyze_cached(&options.input, AnalysisConfig::default())
+        .map_err(|error| format!("audio analysis failed: {error}"))?;
+    let sample = analysis.sample_at(options.time_seconds);
+    println!("Sample rate: {} Hz", analysis.sample_rate);
+    println!("Duration: {:.3} seconds", analysis.duration_seconds);
+    println!("Feature frames: {}", analysis.frames.len());
+    println!("Waveform buckets: {}", analysis.waveform.len());
+    println!(
+        "Sample at {:.3}s: RMS {:.4}, sub {:.4}, bass {:.4}, low mids {:.4}, mids {:.4}, high mids {:.4}, highs {:.4}, centroid {:.4}, flux {:.4}, transient {:.4}",
+        sample.time_seconds,
+        sample.rms,
+        sample.bands.sub,
+        sample.bands.bass,
+        sample.bands.low_mids,
+        sample.bands.mids,
+        sample.bands.high_mids,
+        sample.bands.highs,
+        sample.spectral_centroid,
+        sample.spectral_flux,
+        sample.transient_strength
+    );
+    println!(
+        "Cache: {}",
+        audio_engine::cache_path_for(&options.input).display()
+    );
+    Ok(())
 }
 
 fn run_benchmark(context: &GpuContext, options: &BenchmarkOptions) -> Result<(), String> {
@@ -558,7 +627,8 @@ fn print_help() {
          [--backend auto|dx12|vulkan]\n\
          particle-render benchmark [--count N] [--frames 10] [--width 1920] \
          [--height 1080] [--particle-size 2] [--overdraw] [--readback] \
-         [--backend auto|dx12|vulkan]"
+         [--backend auto|dx12|vulkan]\n\
+         particle-render audio-info <audio-path> [--time seconds]"
     );
 }
 
@@ -679,6 +749,23 @@ mod tests {
                 ..
             }))
         ));
+    }
+
+    #[test]
+    fn parses_audio_feature_inspection() {
+        let options = CliOptions::parse(
+            ["audio-info", "track.flac", "--time", "12.5"]
+                .into_iter()
+                .map(str::to_owned),
+        )
+        .unwrap();
+        assert_eq!(
+            options.command,
+            Some(Command::AudioInfo(AudioInfoOptions {
+                input: PathBuf::from("track.flac"),
+                time_seconds: 12.5
+            }))
+        );
     }
 
     #[test]

@@ -415,24 +415,26 @@ Produce the first real Rustique music visualization without a GUI.
 
 ## Tasks
 
-- [ ] Load project
-- [ ] Load audio
-- [ ] Load cached audio analysis
-- [ ] Simulate frame-by-frame
-- [ ] Apply modulation
-- [ ] Render frames offscreen
-- [ ] Save temporary PNG sequence first
-- [ ] Verify synchronization with audio
-- [ ] Render at:
-  - [ ] 1280x720
-  - [ ] 1920x1080
-- [ ] Create a short 10–30 second test project
+- [x] Load project
+- [x] Load audio
+- [x] Load cached audio analysis
+- [x] Simulate frame-by-frame
+- [x] Apply modulation
+- [x] Render frames offscreen
+- [x] Save temporary PNG sequence first
+- [x] Verify synchronization with audio
+- [x] Render at:
+  - [x] 1280x720
+  - [x] 1920x1080
+- [x] Create a short 10–30 second test project
+  - `examples/star-orbit.rustique.json` is a 10-second deterministic scene.
 
 ## Acceptance Criteria
 
-- [ ] A deterministic audio-reactive sequence can be rendered from CLI
-- [ ] Visual reactions line up with audio events
-- [ ] Rendering can proceed slower than realtime
+- [x] A deterministic audio-reactive sequence can be rendered from CLI
+  - Two independent validation sequences produced identical per-frame hashes.
+- [x] Visual reactions line up with audio events
+- [x] Rendering can proceed slower than realtime
 
 ---
 

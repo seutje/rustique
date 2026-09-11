@@ -5,6 +5,12 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
+[dependencies]
+audio-engine = { path = "../audio-engine" }
+project-format = { path = "../project-format" }
+render-core = { path = "../render-core" }
+simulation = { path = "../simulation" }
+thiserror = "2"
+
 [lints]
 workspace = true
-

@@ -7,6 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 audio-engine = { path = "../../crates/audio-engine" }
+exporter = { path = "../../crates/exporter" }
 pollster = "0.4"
 project-format = { path = "../../crates/project-format" }
 render-core = { path = "../../crates/render-core" }

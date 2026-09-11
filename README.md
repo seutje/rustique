@@ -77,4 +77,10 @@ See [`docs/AUDIO.md`](docs/AUDIO.md) for formats, features, and cache behavior.
 Inspect a project's smoothed audio mappings with `modulation-info`; mapping
 semantics are documented in [`docs/MODULATION.md`](docs/MODULATION.md).
 
+Render an audio-reactive PNG sequence without a window:
+
+```bash
+cargo run -p particle-render --release -- sequence examples/star-orbit.rustique.json --audio track.wav --output-dir frames
+```
+
 The future desktop editor belongs under `apps/desktop`; the render core and CLI do not depend on Tauri or a window.

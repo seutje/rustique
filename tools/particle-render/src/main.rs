@@ -1,6 +1,7 @@
 use std::{env, num::NonZeroU32, path::PathBuf, process::ExitCode, time::Instant};
 
 use audio_engine::{AnalysisConfig, analyze_cached};
+use exporter::{PngSequenceConfig, render_png_sequence};
 use project_format::{EnvelopeSmoother, ProjectV1, evaluate_mappings};
 use render_core::{
     BackendPreference, BenchmarkConfig, GpuConfig, GpuContext, OffscreenRenderTarget,
@@ -102,6 +103,7 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
         Some(Command::ModulationInfo(_)) => {
             unreachable!("modulation command returned before GPU setup")
         }
+        Some(Command::Sequence(sequence)) => run_sequence(&context, &sequence),
         None => Err("no command specified; use still, --gpu-info, or --help".into()),
     }
 }
@@ -121,6 +123,7 @@ enum Command {
     Benchmark(BenchmarkOptions),
     AudioInfo(AudioInfoOptions),
     ModulationInfo(ModulationInfoOptions),
+    Sequence(SequenceOptions),
 }
 
 #[derive(Debug, PartialEq)]
@@ -214,6 +217,17 @@ struct ModulationInfoOptions {
     time_seconds: f64,
 }
 
+#[derive(Debug, PartialEq)]
+struct SequenceOptions {
+    project: PathBuf,
+    audio: PathBuf,
+    output_directory: PathBuf,
+    start_frame: u32,
+    frame_count: Option<u32>,
+    width: Option<u32>,
+    height: Option<u32>,
+}
+
 impl CliOptions {
     fn parse(mut args: impl Iterator<Item = String>) -> Result<Self, String> {
         let mut options = Self::default();
@@ -239,6 +253,10 @@ impl CliOptions {
                 "modulation-info" => {
                     let modulation = ModulationInfoOptions::parse(&mut args)?;
                     set_command(&mut options.command, Command::ModulationInfo(modulation))?;
+                }
+                "sequence" => {
+                    let sequence = SequenceOptions::parse(&mut args, &mut options.backend)?;
+                    set_command(&mut options.command, Command::Sequence(sequence))?;
                 }
                 "-h" | "--help" => options.help = true,
                 "--backend" => {
@@ -437,6 +455,60 @@ impl ModulationInfoOptions {
     }
 }
 
+impl SequenceOptions {
+    fn parse(
+        args: &mut impl Iterator<Item = String>,
+        backend: &mut BackendPreference,
+    ) -> Result<Self, String> {
+        let project = PathBuf::from(required_value(args, "sequence project")?);
+        let mut audio = None;
+        let mut output_directory = None;
+        let mut start_frame = 0;
+        let mut frame_count = None;
+        let mut width = None;
+        let mut height = None;
+        while let Some(argument) = args.next() {
+            match argument.as_str() {
+                "--audio" => audio = Some(PathBuf::from(required_value(args, "--audio")?)),
+                "--output-dir" => {
+                    output_directory = Some(PathBuf::from(required_value(args, "--output-dir")?));
+                }
+                "--start-frame" => {
+                    start_frame =
+                        parse_number("start-frame", &required_value(args, "--start-frame")?)?;
+                }
+                "--frames" => {
+                    frame_count = Some(parse_dimension(
+                        "frames",
+                        &required_value(args, "--frames")?,
+                    )?);
+                }
+                "--width" => {
+                    width = Some(parse_dimension("width", &required_value(args, "--width")?)?);
+                }
+                "--height" => {
+                    height = Some(parse_dimension(
+                        "height",
+                        &required_value(args, "--height")?,
+                    )?);
+                }
+                "--backend" => *backend = parse_backend(&required_value(args, "--backend")?)?,
+                _ => return Err(format!("unknown sequence argument: {argument}")),
+            }
+        }
+        Ok(Self {
+            project,
+            audio: audio.ok_or_else(|| "sequence requires --audio <path>".to_owned())?,
+            output_directory: output_directory
+                .ok_or_else(|| "sequence requires --output-dir <path>".to_owned())?,
+            start_frame,
+            frame_count,
+            width,
+            height,
+        })
+    }
+}
+
 fn run_audio_info(options: &AudioInfoOptions) -> Result<(), String> {
     let analysis = analyze_cached(&options.input, AnalysisConfig::default())
         .map_err(|error| format!("audio analysis failed: {error}"))?;
@@ -500,6 +572,39 @@ fn run_modulation_info(options: &ModulationInfoOptions) -> Result<(), String> {
             value.target, value.source_value, value.output_value
         );
     }
+    Ok(())
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn run_sequence(context: &GpuContext, options: &SequenceOptions) -> Result<(), String> {
+    let project = ProjectV1::load(&options.project).map_err(|error| error.to_string())?;
+    let analysis = analyze_cached(&options.audio, AnalysisConfig::default())
+        .map_err(|error| error.to_string())?;
+    let seconds = f64::from(project.duration_seconds).min(analysis.duration_seconds);
+    let default_end = (seconds * f64::from(project.fps))
+        .floor()
+        .min(f64::from(u32::MAX)) as u32;
+    let end_frame = options.frame_count.map_or(default_end, |count| {
+        options.start_frame.saturating_add(count)
+    });
+    let report = render_png_sequence(
+        context,
+        &project,
+        &analysis,
+        &PngSequenceConfig {
+            output_directory: options.output_directory.clone(),
+            start_frame: options.start_frame,
+            end_frame,
+            width: options.width.unwrap_or(project.render_defaults.width),
+            height: options.height.unwrap_or(project.render_defaults.height),
+        },
+    )
+    .map_err(|error| format!("sequence render failed: {error}"))?;
+    println!(
+        "Rendered {} audio-reactive frames to {}",
+        report.frames_rendered,
+        options.output_directory.display()
+    );
     Ok(())
 }
 
@@ -719,7 +824,9 @@ fn print_help() {
          [--height 1080] [--particle-size 2] [--overdraw] [--readback] \
          [--backend auto|dx12|vulkan]\n\
          particle-render audio-info <audio-path> [--time seconds]\n\
-         particle-render modulation-info <project.json> <audio-path> [--time seconds]"
+         particle-render modulation-info <project.json> <audio-path> [--time seconds]\n\
+         particle-render sequence <project.json> --audio <path> --output-dir <path> \
+         [--start-frame 0] [--frames N] [--width W] [--height H]"
     );
 }
 
@@ -857,6 +964,32 @@ mod tests {
                 time_seconds: 12.5
             }))
         );
+    }
+
+    #[test]
+    fn parses_audio_reactive_sequence() {
+        let options = CliOptions::parse(
+            [
+                "sequence",
+                "project.json",
+                "--audio",
+                "track.wav",
+                "--output-dir",
+                "frames",
+                "--frames",
+                "60",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .unwrap();
+        assert!(matches!(
+            options.command,
+            Some(Command::Sequence(SequenceOptions {
+                frame_count: Some(60),
+                ..
+            }))
+        ));
     }
 
     #[test]

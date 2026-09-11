@@ -208,6 +208,13 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 [[package]]
 name = "exporter"
 version = "0.1.0"
+dependencies = [
+ "audio-engine",
+ "project-format",
+ "render-core",
+ "simulation",
+ "thiserror 2.0.20",
+]
 
 [[package]]
 name = "extended"
@@ -708,6 +715,7 @@ name = "particle-render"
 version = "0.1.0"
 dependencies = [
  "audio-engine",
+ "exporter",
  "pollster",
  "project-format",
  "render-core",

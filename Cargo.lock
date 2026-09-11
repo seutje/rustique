@@ -623,6 +623,7 @@ name = "particle-render"
 version = "0.1.0"
 dependencies = [
  "pollster",
+ "project-format",
  "render-core",
  "simulation",
 ]
@@ -688,6 +689,12 @@ checksum = "3d595e54a326bc53c1c197b32d295e14b169e3cfeaa8dc82b529f947fba6bcf5"
 [[package]]
 name = "project-format"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "simulation",
+ "thiserror 2.0.20",
+]
 
 [[package]]
 name = "quote"

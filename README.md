@@ -51,6 +51,12 @@ frame requests replay from frame zero; see [`docs/DETERMINISM.md`](docs/DETERMIN
 
 Try the data-driven force stacks with `--motion orbit` or `--motion swirl`.
 
+Render a versioned project file with its saved seed, forces, timing, and render defaults:
+
+```bash
+cargo run -p particle-render --release -- still examples/star-orbit.rustique.json --output frame.png --frame 120
+```
+
 Run the reproducible RTX scale benchmark (or select one preset with `--count`):
 
 ```bash

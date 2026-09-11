@@ -7,6 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 pollster = "0.4"
+project-format = { path = "../../crates/project-format" }
 render-core = { path = "../../crates/render-core" }
 simulation = { path = "../../crates/simulation" }
 

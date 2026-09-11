@@ -1,5 +1,6 @@
 use std::{env, num::NonZeroU32, path::PathBuf, process::ExitCode, time::Instant};
 
+use project_format::ProjectV1;
 use render_core::{
     BackendPreference, BenchmarkConfig, GpuConfig, GpuContext, OffscreenRenderTarget,
     ParticleRenderer, RgbaColor,
@@ -36,15 +37,20 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
             Ok(())
         }
         Some(Command::Still(still)) => {
-            let target = OffscreenRenderTarget::new(&context, still.width, still.height)
+            if let Some(project_path) = &still.project {
+                return render_project_still(&context, &still, project_path);
+            }
+            let width = still.width.unwrap_or(1920);
+            let height = still.height.unwrap_or(1080);
+            let target = OffscreenRenderTarget::new(&context, width, height)
                 .map_err(|error| format!("failed to create offscreen target: {error}"))?;
             target
                 .save_clear_png(&context, still.color, &still.output)
                 .map_err(|error| format!("failed to render still: {error}"))?;
             println!(
                 "Rendered {}x{} still to {}",
-                still.width,
-                still.height,
+                width,
+                height,
                 still.output.display()
             );
             Ok(())
@@ -71,6 +77,7 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
                     &target,
                     particles.frame,
                     timing,
+                    BenchmarkConfig::default(),
                     RgbaColor::BLACK,
                     &particles.output,
                 )
@@ -105,10 +112,12 @@ enum Command {
 
 #[derive(Debug, PartialEq)]
 struct StillOptions {
+    project: Option<PathBuf>,
     output: PathBuf,
-    width: u32,
-    height: u32,
+    width: Option<u32>,
+    height: Option<u32>,
     color: RgbaColor,
+    frame: u32,
 }
 
 #[derive(Debug, PartialEq)]
@@ -217,28 +226,41 @@ impl StillOptions {
         backend: &mut BackendPreference,
     ) -> Result<Self, String> {
         let mut output = None;
-        let mut width = 1920;
-        let mut height = 1080;
+        let mut project = None;
+        let mut width = None;
+        let mut height = None;
         let mut color = RgbaColor::new(0.02, 0.04, 0.12, 1.0);
+        let mut frame = 0;
         while let Some(argument) = args.next() {
             match argument.as_str() {
                 "--output" => {
                     output = Some(PathBuf::from(required_value(args, "--output")?));
                 }
-                "--width" => width = parse_dimension("width", &required_value(args, "--width")?)?,
+                "--width" => {
+                    width = Some(parse_dimension("width", &required_value(args, "--width")?)?);
+                }
                 "--height" => {
-                    height = parse_dimension("height", &required_value(args, "--height")?)?;
+                    height = Some(parse_dimension(
+                        "height",
+                        &required_value(args, "--height")?,
+                    )?);
                 }
                 "--color" => color = parse_color(&required_value(args, "--color")?)?,
+                "--frame" => frame = parse_number("frame", &required_value(args, "--frame")?)?,
                 "--backend" => *backend = parse_backend(&required_value(args, "--backend")?)?,
+                _ if !argument.starts_with('-') && project.is_none() => {
+                    project = Some(PathBuf::from(argument));
+                }
                 _ => return Err(format!("unknown still argument: {argument}")),
             }
         }
         Ok(Self {
+            project,
             output: output.ok_or_else(|| "still requires --output <path>".to_owned())?,
             width,
             height,
             color,
+            frame,
         })
     }
 }
@@ -393,6 +415,52 @@ fn run_benchmark(context: &GpuContext, options: &BenchmarkOptions) -> Result<(),
     Ok(())
 }
 
+fn render_project_still(
+    context: &GpuContext,
+    options: &StillOptions,
+    project_path: &PathBuf,
+) -> Result<(), String> {
+    let project = ProjectV1::load(project_path)
+        .map_err(|error| format!("failed to load project: {error}"))?;
+    let width = options.width.unwrap_or(project.render_defaults.width);
+    let height = options.height.unwrap_or(project.render_defaults.height);
+    let target = OffscreenRenderTarget::new(context, width, height)
+        .map_err(|error| format!("failed to create offscreen target: {error}"))?;
+    let mut renderer = ParticleRenderer::new(context, project.particle_system.count, project.seed)
+        .map_err(|error| format!("failed to create particle renderer: {error}"))?;
+    renderer
+        .set_forces(context, &project.forces)
+        .map_err(|error| format!("failed to configure project forces: {error}"))?;
+    let project_fps = NonZeroU32::new(project.fps)
+        .ok_or_else(|| "project FPS must be greater than zero".to_owned())?;
+    let substeps = NonZeroU32::new(project.particle_system.substeps)
+        .ok_or_else(|| "project substeps must be greater than zero".to_owned())?;
+    let background = project.render_defaults.background;
+    renderer
+        .save_timeline_frame_png(
+            context,
+            &target,
+            options.frame,
+            SimulationTiming::new(project_fps, project_fps, substeps),
+            BenchmarkConfig {
+                particle_size_pixels: project.render_defaults.particle_size_pixels,
+                position_scale: 1.0,
+            },
+            RgbaColor::new(background[0], background[1], background[2], background[3]),
+            &options.output,
+        )
+        .map_err(|error| format!("failed to render project still: {error}"))?;
+    println!(
+        "Rendered project {} frame {} at {}x{} to {}",
+        project_path.display(),
+        options.frame,
+        width,
+        height,
+        options.output.display()
+    );
+    Ok(())
+}
+
 fn parse_positive_float(name: &str, value: &str) -> Result<f32, String> {
     let parsed = value
         .parse::<f32>()
@@ -481,8 +549,9 @@ fn parse_backend(value: &str) -> Result<BackendPreference, String> {
 fn print_help() {
     println!(
         "particle-render --gpu-info [--backend auto|dx12|vulkan]\n\
-         particle-render still --output <path> [--width 1920] [--height 1080] \
-         [--color RRGGBB[AA]] [--backend auto|dx12|vulkan]\n\
+         particle-render still [project.json] --output <path> [--frame 0] \
+         [--width 1920] [--height 1080] [--color RRGGBB[AA]] \
+         [--backend auto|dx12|vulkan]\n\
          particle-render particles --output <path> [--count 10000] [--seed 1] \
          [--frame 0] [--fps 60] [--substeps 1] [--motion none|orbit|swirl] \
          [--width 1920] [--height 1080] \
@@ -537,10 +606,12 @@ mod tests {
         assert_eq!(
             options.command,
             Some(Command::Still(StillOptions {
+                project: None,
                 output: PathBuf::from("frame.png"),
-                width: 13,
-                height: 7,
+                width: Some(13),
+                height: Some(7),
                 color: RgbaColor::new(1.0, 128.0 / 255.0, 0.0, 64.0 / 255.0),
+                frame: 0,
             }))
         );
     }
@@ -580,6 +651,31 @@ mod tests {
                 count: 1_000_000,
                 seed: 9,
                 frame: 4,
+                ..
+            }))
+        ));
+    }
+
+    #[test]
+    fn parses_project_still() {
+        let options = CliOptions::parse(
+            [
+                "still",
+                "examples/star-orbit.rustique.json",
+                "--output",
+                "frame.png",
+                "--frame",
+                "30",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .unwrap();
+        assert!(matches!(
+            options.command,
+            Some(Command::Still(StillOptions {
+                project: Some(_),
+                frame: 30,
                 ..
             }))
         ));

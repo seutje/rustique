@@ -302,30 +302,30 @@ Serialize complete creative state into a versioned project.
 
 ## Tasks
 
-- [ ] Define `ProjectV1`
-- [ ] Include:
-  - [ ] project version
-  - [ ] engine version
-  - [ ] seed
-  - [ ] FPS
-  - [ ] duration
-  - [ ] particle system
-  - [ ] force parameters
-  - [ ] camera
-  - [ ] render defaults
-- [ ] Use serde
-- [ ] Add load/save helpers
-- [ ] Add schema validation where practical
-- [ ] Add forward-compatible version field
-- [ ] Add sample projects under `examples/`
-- [ ] Add CLI loading:
-  - [ ] `particle-render still project.json ...`
+- [x] Define `ProjectV1`
+- [x] Include:
+  - [x] project version
+  - [x] engine version
+  - [x] seed
+  - [x] FPS
+  - [x] duration
+  - [x] particle system
+  - [x] force parameters
+  - [x] camera
+  - [x] render defaults
+- [x] Use serde
+- [x] Add load/save helpers
+- [x] Add schema validation where practical
+- [x] Add forward-compatible version field
+- [x] Add sample projects under `examples/`
+- [x] Add CLI loading:
+  - [x] `particle-render still project.json ...`
 
 ## Acceptance Criteria
 
-- [ ] A saved project reproduces the same scene
-- [ ] Invalid projects return useful errors
-- [ ] Project schema is versioned from day one
+- [x] A saved project reproduces the same scene
+- [x] Invalid projects return useful errors
+- [x] Project schema is versioned from day one
 
 ---
 

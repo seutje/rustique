@@ -322,6 +322,7 @@ impl ParticleRenderer {
         target: &OffscreenRenderTarget,
         frame_index: u32,
         timing: SimulationTiming,
+        render_config: BenchmarkConfig,
         clear: RgbaColor,
     ) -> Result<Vec<u8>, ParticleRenderError> {
         if frame_index < self.timeline_frame {
@@ -337,8 +338,8 @@ impl ParticleRenderer {
                     simulation_time: timing.frame_time(frame)
                         + substep as f32 * timing.substep_delta(),
                     viewport_size: [target.dimensions().0 as f32, target.dimensions().1 as f32],
-                    particle_size_pixels: 2.0,
-                    position_scale: 1.0,
+                    particle_size_pixels: render_config.particle_size_pixels,
+                    position_scale: render_config.position_scale,
                     simulation_seed: seed_u32(self.seed),
                     force_count: self.force_count,
                     padding: [0; 2],
@@ -375,8 +376,8 @@ impl ParticleRenderer {
             delta_time: timing.substep_delta(),
             simulation_time: timing.frame_time(frame_index),
             viewport_size: [target.dimensions().0 as f32, target.dimensions().1 as f32],
-            particle_size_pixels: 2.0,
-            position_scale: 1.0,
+            particle_size_pixels: render_config.particle_size_pixels,
+            position_scale: render_config.position_scale,
             simulation_seed: seed_u32(self.seed),
             force_count: self.force_count,
             padding: [0; 2],
@@ -419,16 +420,19 @@ impl ParticleRenderer {
     /// # Errors
     ///
     /// Returns an error if rendering, readback, or PNG encoding fails.
+    #[allow(clippy::too_many_arguments)]
     pub fn save_timeline_frame_png(
         &mut self,
         context: &GpuContext,
         target: &OffscreenRenderTarget,
         frame_index: u32,
         timing: SimulationTiming,
+        render_config: BenchmarkConfig,
         clear: RgbaColor,
         path: impl AsRef<Path>,
     ) -> Result<(), ParticleRenderError> {
-        let pixels = self.render_timeline_frame(context, target, frame_index, timing, clear)?;
+        let pixels =
+            self.render_timeline_frame(context, target, frame_index, timing, render_config, clear)?;
         Ok(target.save_png(&pixels, path.as_ref())?)
     }
 

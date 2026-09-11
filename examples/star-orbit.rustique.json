@@ -1,0 +1,28 @@
+{
+  "project_version": 1,
+  "engine_version": "0.1.0",
+  "seed": 93128,
+  "fps": 60,
+  "duration_seconds": 10.0,
+  "particle_system": {
+    "count": 100000,
+    "substeps": 2,
+    "emitter": { "type": "burst", "count": 100000, "frame": 0, "respawn": "loop" }
+  },
+  "forces": [
+    { "type": "point_attractor", "position": [0.0, 0.0, 0.0], "strength": 0.08 },
+    { "type": "vortex", "center": [0.0, 0.0, 0.0], "strength": 0.2 },
+    { "type": "drag", "coefficient": 0.02 }
+  ],
+  "camera": {
+    "position": [0.0, 0.0, 3.0],
+    "target": [0.0, 0.0, 0.0],
+    "vertical_fov_degrees": 45.0
+  },
+  "render_defaults": {
+    "width": 1920,
+    "height": 1080,
+    "particle_size_pixels": 2.0,
+    "background": [0.0, 0.0, 0.0, 1.0]
+  }
+}

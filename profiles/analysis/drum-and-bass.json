@@ -1,0 +1,6 @@
+{
+  "profile_version": 1, "id": "drum-and-bass", "display_name": "Drum & Bass",
+  "description": "Strong low-end and transient response with present high frequencies.",
+  "sensitivity": 1.15,
+  "frequency_weights": { "rms": 0.95, "sub": 1.35, "bass": 1.3, "low_mids": 0.8, "mids": 0.75, "high_mids": 0.95, "highs": 1.2, "spectral_centroid": 0.9, "spectral_flux": 1.3, "transient": 1.4 }
+}

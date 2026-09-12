@@ -45,5 +45,13 @@
   "visual_preset": {
     "source": "../presets/star-system.json",
     "overrides": { "macros": { "density": 100000.0, "orbit_speed": 8.0 } }
+  },
+  "analysis_profile": {
+    "source": "../profiles/analysis/techno.json",
+    "overrides": {}
+  },
+  "reaction_profile": {
+    "source": "../profiles/reaction/punchy.json",
+    "overrides": { "release_seconds": 0.2 }
   }
 }

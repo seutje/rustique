@@ -1,0 +1,7 @@
+{
+  "profile_version": 1, "id": "dreamy", "display_name": "Dreamy", "attack_seconds": 0.35, "release_seconds": 1.2,
+  "recommended_mappings": [
+    { "source": "spectral_centroid", "target": "camera_fov", "amount": 0.7, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "polarity": "normal", "curve": "linear", "attack_seconds": 0.0, "release_seconds": 0.0 },
+    { "source": "mids", "target": "brightness", "amount": 1.0, "offset": 0.45, "minimum": 0.0, "maximum": 1.8, "polarity": "normal", "curve": "linear", "attack_seconds": 0.0, "release_seconds": 0.0 }
+  ]
+}

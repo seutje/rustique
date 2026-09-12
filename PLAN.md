@@ -575,28 +575,31 @@ Create reusable genre-aware analysis and reaction defaults.
 
 ## Tasks
 
-- [ ] Define analysis profile schema
-- [ ] Define reaction profile schema
-- [ ] Implement analysis profiles:
-  - [ ] Techno
-  - [ ] Drum & Bass
-  - [ ] Ambient
-  - [ ] Cinematic
-- [ ] Implement reaction profiles:
-  - [ ] Punchy
-  - [ ] Fluid
-  - [ ] Dreamy
-  - [ ] Aggressive
-- [ ] Add profile-level attack/release defaults
-- [ ] Add profile-level frequency weighting
-- [ ] Add recommended mappings
-- [ ] Allow project overrides
+- [x] Define analysis profile schema
+- [x] Define reaction profile schema
+- [x] Implement analysis profiles:
+  - [x] Techno
+  - [x] Drum & Bass
+  - [x] Ambient
+  - [x] Cinematic
+- [x] Implement reaction profiles:
+  - [x] Punchy
+  - [x] Fluid
+  - [x] Dreamy
+  - [x] Aggressive
+- [x] Add profile-level attack/release defaults
+- [x] Add profile-level frequency weighting
+- [x] Add recommended mappings
+- [x] Allow project overrides
 
 ## Acceptance Criteria
 
-- [ ] Same visual preset behaves differently under at least two audio profiles
-- [ ] Profiles remain editable data
-- [ ] Profile selection does not bypass the universal modulation system
+- [x] Same visual preset behaves differently under at least two audio profiles
+  - Techno and Ambient apply distinct deterministic weights to the same normalized feature sample.
+- [x] Profiles remain editable data
+  - Analysis and reaction profiles are versioned JSON files under `profiles/`.
+- [x] Profile selection does not bypass the universal modulation system
+  - Reaction recommendations resolve to the existing `ModulationMapping` pipeline.
 
 ---
 

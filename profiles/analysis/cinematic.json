@@ -1,0 +1,6 @@
+{
+  "profile_version": 1, "id": "cinematic", "display_name": "Cinematic",
+  "description": "Broad dynamic response with extra sub energy and spectral movement.",
+  "sensitivity": 1.0,
+  "frequency_weights": { "rms": 1.15, "sub": 1.25, "bass": 1.05, "low_mids": 1.0, "mids": 1.0, "high_mids": 1.0, "highs": 0.9, "spectral_centroid": 1.0, "spectral_flux": 1.15, "transient": 1.1 }
+}

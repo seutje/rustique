@@ -1,0 +1,6 @@
+{
+  "profile_version": 1, "id": "ambient", "display_name": "Ambient",
+  "description": "Balanced tonal motion with restrained transient response.",
+  "sensitivity": 0.85,
+  "frequency_weights": { "rms": 1.0, "sub": 0.8, "bass": 0.85, "low_mids": 1.1, "mids": 1.2, "high_mids": 1.15, "highs": 1.0, "spectral_centroid": 1.2, "spectral_flux": 0.65, "transient": 0.5 }
+}

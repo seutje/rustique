@@ -1,0 +1,7 @@
+{
+  "profile_version": 1, "id": "fluid", "display_name": "Fluid", "attack_seconds": 0.12, "release_seconds": 0.65,
+  "recommended_mappings": [
+    { "source": "bass", "target": "gravity_strength", "amount": 0.1, "offset": 0.04, "minimum": 0.0, "maximum": 0.2, "polarity": "normal", "curve": "linear", "attack_seconds": 0.0, "release_seconds": 0.0 },
+    { "source": "mids", "target": "brightness", "amount": 1.1, "offset": 0.5, "minimum": 0.0, "maximum": 2.0, "polarity": "normal", "curve": "linear", "attack_seconds": 0.0, "release_seconds": 0.0 }
+  ]
+}

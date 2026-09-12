@@ -1,0 +1,8 @@
+{
+  "profile_version": 1, "id": "aggressive", "display_name": "Aggressive", "attack_seconds": 0.0, "release_seconds": 0.09,
+  "recommended_mappings": [
+    { "source": "sub", "target": "gravity_strength", "amount": 0.22, "offset": 0.03, "minimum": 0.0, "maximum": 0.3, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.0 },
+    { "source": "transient", "target": "camera_shake", "amount": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.0 },
+    { "source": "highs", "target": "brightness", "amount": 1.5, "offset": 0.5, "minimum": 0.0, "maximum": 2.2, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.0 }
+  ]
+}

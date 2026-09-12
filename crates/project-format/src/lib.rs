@@ -1,7 +1,13 @@
 //! Versioned, renderer-independent Rustique project representation.
 
+mod audio_profile;
 mod modulation;
 mod preset;
+
+pub use audio_profile::{
+    AnalysisProfileOverridesV1, AnalysisProfileSelectionV1, AnalysisProfileV1, FeatureWeightsV1,
+    ReactionProfileOverridesV1, ReactionProfileSelectionV1, ReactionProfileV1,
+};
 
 pub use modulation::{
     ActiveModulation, EnvelopeSmoother, ModulatedParameters, ModulationCurve, ModulationMapping,
@@ -38,6 +44,18 @@ pub struct ProjectV1 {
     pub modulation_mappings: Vec<ModulationMapping>,
     #[serde(default)]
     pub visual_preset: Option<PresetSelectionV1>,
+    #[serde(default)]
+    pub analysis_profile: Option<AnalysisProfileSelectionV1>,
+    #[serde(default)]
+    pub reaction_profile: Option<ReactionProfileSelectionV1>,
+    #[serde(skip)]
+    pub resolved_audio_profile: Option<ResolvedAudioProfile>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ResolvedAudioProfile {
+    pub sensitivity: f32,
+    pub frequency_weights: FeatureWeightsV1,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -259,8 +277,73 @@ impl ProjectV1 {
             let preset = VisualPresetV1::load(&preset_path)?;
             preset.apply(&mut project, &selection.overrides)?;
         }
+        if let Some(selection) = project.analysis_profile.clone() {
+            let profile_path = path
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join(&selection.source);
+            let profile = AnalysisProfileV1::load(profile_path)?;
+            let sensitivity = selection
+                .overrides
+                .sensitivity
+                .unwrap_or(profile.sensitivity);
+            let frequency_weights = selection
+                .overrides
+                .frequency_weights
+                .unwrap_or(profile.frequency_weights);
+            if !sensitivity.is_finite() || sensitivity < 0.0 || !frequency_weights.is_valid() {
+                return Err(ProjectError::Validation(
+                    "analysis profile overrides must be finite and non-negative".into(),
+                ));
+            }
+            project.resolved_audio_profile = Some(ResolvedAudioProfile {
+                sensitivity,
+                frequency_weights,
+            });
+        }
+        if let Some(selection) = project.reaction_profile.clone() {
+            let profile_path = path
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join(&selection.source);
+            let profile = ReactionProfileV1::load(profile_path)?;
+            let attack = selection
+                .overrides
+                .attack_seconds
+                .unwrap_or(profile.attack_seconds);
+            let release = selection
+                .overrides
+                .release_seconds
+                .unwrap_or(profile.release_seconds);
+            if !attack.is_finite() || attack < 0.0 || !release.is_finite() || release < 0.0 {
+                return Err(ProjectError::Validation(
+                    "reaction profile smoothing overrides must be finite and non-negative".into(),
+                ));
+            }
+            let mut mappings = selection
+                .overrides
+                .mappings
+                .unwrap_or(profile.recommended_mappings);
+            for mapping in &mut mappings {
+                mapping.attack_seconds = attack;
+                mapping.release_seconds = release;
+            }
+            project.modulation_mappings = mappings;
+        }
         project.validate()?;
         Ok(project)
+    }
+
+    #[must_use]
+    pub fn apply_analysis_profile(
+        &self,
+        features: audio_engine::AudioFeatureFrame,
+    ) -> audio_engine::AudioFeatureFrame {
+        self.resolved_audio_profile.map_or(features, |profile| {
+            profile
+                .frequency_weights
+                .apply(features, profile.sensitivity)
+        })
     }
 
     /// Validates values that serde's structural decoding cannot constrain.
@@ -439,6 +522,9 @@ mod tests {
             },
             modulation_mappings: Vec::new(),
             visual_preset: None,
+            analysis_profile: None,
+            reaction_profile: None,
+            resolved_audio_profile: None,
         }
     }
 

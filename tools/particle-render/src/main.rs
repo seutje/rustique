@@ -656,7 +656,7 @@ fn run_modulation_info(options: &ModulationInfoOptions) -> Result<(), String> {
         active = evaluate_mappings(
             &project.modulation_mappings,
             &mut smoothers,
-            *features,
+            project.apply_analysis_profile(*features),
             delta,
         );
     }
@@ -664,7 +664,7 @@ fn run_modulation_info(options: &ModulationInfoOptions) -> Result<(), String> {
         active = evaluate_mappings(
             &project.modulation_mappings,
             &mut smoothers,
-            analysis.sample_at(options.time_seconds),
+            project.apply_analysis_profile(analysis.sample_at(options.time_seconds)),
             delta,
         );
     }

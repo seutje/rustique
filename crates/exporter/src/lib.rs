@@ -138,7 +138,7 @@ pub fn render_png_sequence(
         let active = evaluate_mappings(
             &project.modulation_mappings,
             &mut smoothers,
-            analysis.sample_at(time),
+            project.apply_analysis_profile(analysis.sample_at(time)),
             1.0 / project.fps as f32,
         );
         let mut parameters = ModulatedParameters {

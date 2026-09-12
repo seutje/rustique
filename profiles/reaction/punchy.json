@@ -1,0 +1,7 @@
+{
+  "profile_version": 1, "id": "punchy", "display_name": "Punchy", "attack_seconds": 0.01, "release_seconds": 0.16,
+  "recommended_mappings": [
+    { "source": "bass", "target": "particle_size", "amount": 2.5, "offset": 1.5, "minimum": 1.0, "maximum": 5.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.0 },
+    { "source": "transient", "target": "burst_emission", "amount": 7000.0, "offset": 0.0, "minimum": 0.0, "maximum": 7000.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.0 }
+  ]
+}

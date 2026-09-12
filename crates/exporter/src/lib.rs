@@ -16,6 +16,7 @@ use render_core::{
     BenchmarkConfig, GpuContext, LiquidChromeConfig, LiquidChromeError, LiquidChromeRenderer,
     OffscreenError, OffscreenRenderTarget, ParticleRenderError, ParticleRenderer,
     PerspectiveCamera, RgbaColor, VolumetricConfig, VolumetricQuality, VolumetricRenderer,
+    WaterDropletConfig, WaterDropletError, WaterDropletRenderer,
 };
 use simulation::SimulationTiming;
 use std::{
@@ -60,6 +61,8 @@ pub enum ExportError {
     Render(#[from] ParticleRenderError),
     #[error(transparent)]
     LiquidChrome(#[from] LiquidChromeError),
+    #[error(transparent)]
+    WaterDroplets(#[from] WaterDropletError),
     #[error("output already exists: {0}")]
     OutputExists(PathBuf),
     #[error("failed to start FFmpeg executable {executable}: {source}")]
@@ -179,6 +182,23 @@ pub fn render_png_sequence(
             )
         })
         .transpose()?;
+    let droplets = (project.render_mode == RenderModeV1::WaterDroplets).then(|| {
+        WaterDropletRenderer::new(
+            context,
+            config.width,
+            config.height,
+            WaterDropletConfig {
+                seed: project.seed,
+                density: project.water_droplets.density,
+                size: project.water_droplets.size,
+                size_variation: project.water_droplets.size_variation,
+                refraction_strength: project.water_droplets.refraction_strength,
+                fresnel_strength: project.water_droplets.fresnel_strength,
+                gravity: project.water_droplets.gravity,
+                emission: project.water_droplets.emission,
+            },
+        )
+    });
     let mut smoothers = vec![EnvelopeSmoother::default(); project.modulation_mappings.len()];
     let has_burst = project
         .modulation_mappings
@@ -218,7 +238,15 @@ pub fn render_png_sequence(
         };
         let clear = RgbaColor::new(background[0], background[1], background[2], background[3]);
         if frame < config.start_frame {
-            if let Some(chrome) = &chrome {
+            if let Some(droplets) = &droplets {
+                let _pixels = droplets.render_frame(
+                    context,
+                    &target,
+                    time as f32,
+                    parameters.burst_emission,
+                    clear,
+                )?;
+            } else if let Some(chrome) = &chrome {
                 let _pixels = chrome.render_frame(
                     context,
                     &target,
@@ -243,7 +271,16 @@ pub fn render_png_sequence(
             continue;
         }
         let path = frame_path(&config.output_directory, frame);
-        if let Some(chrome) = &chrome {
+        if let Some(droplets) = &droplets {
+            droplets.save_frame_png(
+                context,
+                &target,
+                time as f32,
+                parameters.burst_emission,
+                clear,
+                path,
+            )?;
+        } else if let Some(chrome) = &chrome {
             chrome.save_frame_png(
                 context,
                 &target,

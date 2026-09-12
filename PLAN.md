@@ -1073,19 +1073,24 @@ Create a distinct refractive droplet system.
 
 ## Tasks
 
-- [ ] Add droplet instancing or surface representation
-- [ ] Add refraction approximation
-- [ ] Add Fresnel
-- [ ] Add environment/background distortion
-- [ ] Add size distribution
-- [ ] Add gravity / surface motion
-- [ ] Add audio-reactive droplet emission
-- [ ] Add condensation-style preset
+- [x] Add droplet instancing or surface representation
+- [x] Add refraction approximation
+- [x] Add Fresnel
+- [x] Add environment/background distortion
+- [x] Add size distribution
+- [x] Add gravity / surface motion
+- [x] Add audio-reactive droplet emission
+- [x] Add condensation-style preset
 
 ## Acceptance Criteria
 
-- [ ] Water Droplets looks visually distinct from generic particles
-- [ ] Droplet properties are data-driven
+- [x] Water Droplets looks visually distinct from generic particles
+- [x] Droplet properties are data-driven
+
+  - The headless `water_droplets` path renders deterministic screen-space
+    condensation with refracted background detail, Fresnel rims, seeded size
+    variation, gravity motion, and an emission input compatible with the shared
+    `burst_emission` modulation target; see `docs/WATER_DROPLETS.md`.
 
 ---
 

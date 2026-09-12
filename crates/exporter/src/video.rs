@@ -19,7 +19,7 @@ use project_format::{
 use render_core::{
     BenchmarkConfig, GpuContext, LiquidChromeConfig, LiquidChromeRenderer, OffscreenRenderTarget,
     ParticleRenderer, PostProcessConfig, RgbaColor, VolumetricConfig, VolumetricQuality,
-    VolumetricRenderer,
+    VolumetricRenderer, WaterDropletConfig, WaterDropletRenderer,
 };
 use simulation::SimulationTiming;
 
@@ -172,6 +172,23 @@ pub fn export_video(
             )
         })
         .transpose()?;
+    let droplets = (project.render_mode == RenderModeV1::WaterDroplets).then(|| {
+        WaterDropletRenderer::new(
+            context,
+            config.width,
+            config.height,
+            WaterDropletConfig {
+                seed: project.seed,
+                density: project.water_droplets.density,
+                size: project.water_droplets.size,
+                size_variation: project.water_droplets.size_variation,
+                refraction_strength: project.water_droplets.refraction_strength,
+                fresnel_strength: project.water_droplets.fresnel_strength,
+                gravity: project.water_droplets.gravity,
+                emission: project.water_droplets.emission,
+            },
+        )
+    });
 
     let mut command = ffmpeg_command(project, config, &partial_path);
     let mut child = command.spawn().map_err(|source| ExportError::SpawnFfmpeg {
@@ -217,7 +234,17 @@ pub fn export_video(
         };
         parameters.apply(&active);
         let clear = RgbaColor::new(background[0], background[1], background[2], background[3]);
-        let result = if let Some(chrome) = &chrome {
+        let result = if let Some(droplets) = &droplets {
+            droplets
+                .render_frame(
+                    context,
+                    &target,
+                    time as f32,
+                    parameters.burst_emission,
+                    clear,
+                )
+                .map_err(ExportError::from)
+        } else if let Some(chrome) = &chrome {
             chrome
                 .render_frame(
                     context,

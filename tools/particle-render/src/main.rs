@@ -13,7 +13,8 @@ use render_core::{
     BackendPreference, BenchmarkConfig, FluidConfig, FluidRenderer, GpuConfig, GpuContext,
     LiquidChromeConfig, LiquidChromeRenderer, OffscreenRenderTarget, ParticleRenderer,
     PerspectiveCamera, PostProcessConfig, PostProcessQuality, RgbaColor, SpatialGrid,
-    SpatialGridConfig, VolumetricConfig, VolumetricQuality, VolumetricRenderer,
+    SpatialGridConfig, VolumetricConfig, VolumetricQuality, VolumetricRenderer, WaterDropletConfig,
+    WaterDropletRenderer,
 };
 use simulation::{Force, SimulationTiming};
 
@@ -1300,6 +1301,44 @@ fn render_project_still(
             .map_err(|error| format!("failed to render liquid chrome project still: {error}"))?;
         println!(
             "Rendered liquid chrome project {} frame {} at {}x{} to {}",
+            project_path.display(),
+            options.frame,
+            width,
+            height,
+            options.output.display()
+        );
+        return Ok(());
+    }
+    if project.render_mode == RenderModeV1::WaterDroplets {
+        let droplets = &project.water_droplets;
+        let renderer = WaterDropletRenderer::new(
+            context,
+            width,
+            height,
+            WaterDropletConfig {
+                seed: project.seed,
+                density: droplets.density,
+                size: droplets.size,
+                size_variation: droplets.size_variation,
+                refraction_strength: droplets.refraction_strength,
+                fresnel_strength: droplets.fresnel_strength,
+                gravity: droplets.gravity,
+                emission: droplets.emission,
+            },
+        );
+        let background = project.render_defaults.background;
+        renderer
+            .save_frame_png(
+                context,
+                &target,
+                options.frame as f32 / project.fps as f32,
+                0.0,
+                RgbaColor::new(background[0], background[1], background[2], background[3]),
+                &options.output,
+            )
+            .map_err(|error| format!("failed to render water droplet project still: {error}"))?;
+        println!(
+            "Rendered water droplet project {} frame {} at {}x{} to {}",
             project_path.display(),
             options.frame,
             width,

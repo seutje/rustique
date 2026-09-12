@@ -32,6 +32,8 @@ pub struct VisualPresetV1 {
     #[serde(default)]
     pub liquid_chrome: crate::LiquidChromeV1,
     #[serde(default)]
+    pub water_droplets: crate::WaterDropletsV1,
+    #[serde(default)]
     pub macros: Vec<MacroParameterV1>,
     #[serde(default)]
     pub recommended_mappings: Vec<ModulationMapping>,
@@ -120,6 +122,7 @@ impl VisualPresetV1 {
         project.render_defaults = self.render_defaults.clone();
         project.render_mode = self.render_mode;
         project.liquid_chrome.clone_from(&self.liquid_chrome);
+        project.water_droplets.clone_from(&self.water_droplets);
         project
             .modulation_mappings
             .clone_from(&self.recommended_mappings);

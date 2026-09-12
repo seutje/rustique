@@ -51,6 +51,8 @@ pub struct ProjectV1 {
     #[serde(default)]
     pub liquid_chrome: LiquidChromeV1,
     #[serde(default)]
+    pub water_droplets: WaterDropletsV1,
+    #[serde(default)]
     pub modulation_mappings: Vec<ModulationMapping>,
     #[serde(default)]
     pub automation_tracks: Vec<AutomationTrackV1>,
@@ -73,6 +75,62 @@ pub enum RenderModeV1 {
     Particles,
     Volumetric,
     LiquidChrome,
+    WaterDroplets,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WaterDropletsV1 {
+    #[serde(default = "default_droplet_density")]
+    pub density: f32,
+    #[serde(default = "default_droplet_size")]
+    pub size: f32,
+    #[serde(default = "default_size_variation")]
+    pub size_variation: f32,
+    #[serde(default = "default_refraction_strength")]
+    pub refraction_strength: f32,
+    #[serde(default = "default_fresnel_strength")]
+    pub fresnel_strength: f32,
+    #[serde(default = "default_droplet_gravity")]
+    pub gravity: f32,
+    #[serde(default = "default_emission")]
+    pub emission: f32,
+}
+
+impl Default for WaterDropletsV1 {
+    fn default() -> Self {
+        Self {
+            density: default_droplet_density(),
+            size: default_droplet_size(),
+            size_variation: default_size_variation(),
+            refraction_strength: default_refraction_strength(),
+            fresnel_strength: default_fresnel_strength(),
+            gravity: default_droplet_gravity(),
+            emission: default_emission(),
+        }
+    }
+}
+
+const fn default_droplet_density() -> f32 {
+    0.72
+}
+const fn default_droplet_size() -> f32 {
+    0.34
+}
+const fn default_size_variation() -> f32 {
+    0.65
+}
+const fn default_refraction_strength() -> f32 {
+    0.08
+}
+const fn default_fresnel_strength() -> f32 {
+    1.0
+}
+const fn default_droplet_gravity() -> f32 {
+    0.12
+}
+const fn default_emission() -> f32 {
+    0.45
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -532,6 +590,30 @@ impl ProjectV1 {
                 "liquid chrome material values or environment preset are invalid".into(),
             ));
         }
+        let droplets = &self.water_droplets;
+        if ![
+            droplets.density,
+            droplets.size,
+            droplets.size_variation,
+            droplets.refraction_strength,
+            droplets.fresnel_strength,
+            droplets.gravity,
+            droplets.emission,
+        ]
+        .iter()
+        .all(|value| value.is_finite())
+            || droplets.density < 0.0
+            || droplets.size <= 0.0
+            || !(0.0..=1.0).contains(&droplets.size_variation)
+            || droplets.refraction_strength < 0.0
+            || droplets.fresnel_strength < 0.0
+            || droplets.gravity < 0.0
+            || !(0.0..=1.0).contains(&droplets.emission)
+        {
+            return Err(ProjectError::Validation(
+                "water droplet properties must be finite and inside their documented ranges".into(),
+            ));
+        }
         for mapping in &self.modulation_mappings {
             let values = [
                 mapping.amount,
@@ -630,6 +712,7 @@ mod tests {
             },
             render_mode: RenderModeV1::Particles,
             liquid_chrome: LiquidChromeV1::default(),
+            water_droplets: WaterDropletsV1::default(),
             modulation_mappings: Vec::new(),
             automation_tracks: Vec::new(),
             scene_markers: Vec::new(),

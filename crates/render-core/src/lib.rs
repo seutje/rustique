@@ -10,6 +10,7 @@ mod post_process;
 mod spatial_grid;
 mod surface;
 mod volumetrics;
+mod water_droplets;
 
 pub use camera::PerspectiveCamera;
 pub use fluid::{FluidConfig, FluidError, FluidFrameStats, FluidRenderer};
@@ -23,3 +24,4 @@ pub use post_process::{PostProcessConfig, PostProcessQuality};
 pub use spatial_grid::{SpatialGrid, SpatialGridConfig, SpatialGridError, SpatialGridStats};
 pub use surface::SurfacePresenter;
 pub use volumetrics::{VolumetricConfig, VolumetricQuality, VolumetricRenderer};
+pub use water_droplets::{WaterDropletConfig, WaterDropletError, WaterDropletRenderer};

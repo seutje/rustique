@@ -40,6 +40,9 @@ pub struct VideoExportConfig {
     pub output_path: PathBuf,
     pub width: u32,
     pub height: u32,
+    pub output_width: u32,
+    pub output_height: u32,
+    pub motion_blur_samples: u32,
     pub start_frame: u32,
     pub end_frame: u32,
     pub codec: VideoCodec,
@@ -282,6 +285,7 @@ fn ffmpeg_command(project: &ProjectV1, config: &VideoExportConfig, output: &Path
         .arg("0:v:0")
         .arg("-map")
         .arg("1:a:0")
+        .args(video_filters(config))
         .args(codec_arguments(config.codec))
         .arg("-c:a")
         .arg("aac")
@@ -291,6 +295,24 @@ fn ffmpeg_command(project: &ProjectV1, config: &VideoExportConfig, output: &Path
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
     command
+}
+
+fn video_filters(config: &VideoExportConfig) -> Vec<String> {
+    let mut filters = Vec::new();
+    if config.motion_blur_samples > 1 {
+        filters.push(format!("tmix=frames={}", config.motion_blur_samples));
+    }
+    if config.width != config.output_width || config.height != config.output_height {
+        filters.push(format!(
+            "scale={}:{}:flags=lanczos",
+            config.output_width, config.output_height
+        ));
+    }
+    if filters.is_empty() {
+        Vec::new()
+    } else {
+        vec!["-vf".into(), filters.join(",")]
+    }
 }
 
 fn codec_arguments(codec: VideoCodec) -> &'static [&'static str] {
@@ -342,5 +364,27 @@ mod tests {
         let arguments = codec_arguments(VideoCodec::ProRes4444);
         assert!(arguments.contains(&"yuva444p10le"));
         assert!(arguments.contains(&"4"));
+    }
+
+    #[test]
+    fn production_filters_include_blur_and_supersampling_downscale() {
+        let config = VideoExportConfig {
+            ffmpeg_path: PathBuf::new(),
+            audio_path: PathBuf::new(),
+            output_path: PathBuf::new(),
+            width: 5760,
+            height: 3240,
+            output_width: 3840,
+            output_height: 2160,
+            motion_blur_samples: 4,
+            start_frame: 0,
+            end_frame: 1,
+            codec: VideoCodec::H264,
+            post_process: PostProcessConfig::default(),
+        };
+        assert_eq!(
+            video_filters(&config),
+            ["-vf", "tmix=frames=4,scale=3840:2160:flags=lanczos"]
+        );
     }
 }

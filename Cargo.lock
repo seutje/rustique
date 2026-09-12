@@ -3057,6 +3057,7 @@ dependencies = [
  "raw-window-handle",
  "render-core",
  "serde",
+ "serde_json",
  "simulation",
  "tauri",
  "tauri-build",

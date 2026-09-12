@@ -5,6 +5,8 @@ export interface ActiveModulation { target: string; sourceValue: number; outputV
 export interface PreviewStats { frameIndex: number; framesPerSecond: number; frameTimeMs: number; particleCount: number; gpuComputeMs: number | null; gpuRenderMs: number | null; playing: boolean; activeModulations: ActiveModulation[]; }
 export interface TimelineAudio { durationSeconds: number; waveform: [number, number][]; transientTimes: number[]; beatTimes: number[]; }
 export interface PreviewJob { id: number; kind: "still" | "slice"; state: string; progress: number; outputPath: string | null; error: string | null; }
+export interface ProductionSettings { outputPath: string; width: number; height: number; fps: number; supersampling: number; motionBlurSamples: number; substeps: number; codec: "h264" | "hevc"; }
+export interface ProductionStatus { state: string; completedFrames: number; totalFrames: number; etaSeconds: number | null; outputPath: string | null; manifestPath: string | null; error: string | null; }
 export const queryGpuInfo = () => invoke<GpuSummary>("gpu_info");
 export const loadProject = (path: string) => invoke<EditorProject>("load_project", { path });
 export const updateProject = (project: ProjectData) => invoke<ProjectData>("update_project", { project });
@@ -20,3 +22,5 @@ export const enqueuePreview = (kind: "still" | "slice", project: ProjectData, au
 export const queryPreviewJobs = () => invoke<PreviewJob[]>("preview_jobs");
 export const clearPreviews = () => invoke<void>("clear_previews");
 export const openPreview = (path: string) => invoke<void>("open_preview", { path });
+export const enqueueProductionRender = (project: ProjectData, audioPath: string, settings: ProductionSettings) => invoke<void>("enqueue_production_render", { project, audioPath, settings });
+export const queryProductionStatus = () => invoke<ProductionStatus>("production_render_status");

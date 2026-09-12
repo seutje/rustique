@@ -11,6 +11,8 @@ use tauri::{Manager, State};
 
 mod preview;
 use preview::{PreviewJobStatus, PreviewQueue};
+mod production;
+use production::{ProductionQueue, ProductionSettings, ProductionStatus};
 
 #[cfg(target_os = "windows")]
 mod viewport;
@@ -328,6 +330,21 @@ fn open_preview(path: PathBuf, queue: State<'_, PreviewQueue>) -> Result<(), Str
     queue.open(&path)
 }
 
+#[tauri::command]
+fn enqueue_production_render(
+    project: ProjectV1,
+    audio_path: PathBuf,
+    settings: ProductionSettings,
+    queue: State<'_, ProductionQueue>,
+) -> Result<(), String> {
+    queue.enqueue(project, audio_path, settings)
+}
+
+#[tauri::command]
+fn production_render_status(queue: State<'_, ProductionQueue>) -> Result<ProductionStatus, String> {
+    queue.status()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 /// Starts the desktop application event loop.
 ///
@@ -346,6 +363,7 @@ pub fn run() {
             };
             app.manage(ViewportController::new(handle.hwnd.get())?);
             app.manage(PreviewQueue::new()?);
+            app.manage(ProductionQueue::new()?);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -364,6 +382,8 @@ pub fn run() {
             preview_jobs,
             clear_previews,
             open_preview,
+            enqueue_production_render,
+            production_render_status,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Rustique desktop application");

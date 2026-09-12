@@ -265,6 +265,11 @@ fn viewport_resize(
 }
 
 #[tauri::command]
+fn viewport_visible(visible: bool, viewport: State<'_, ViewportController>) {
+    viewport.set_visible(visible);
+}
+
+#[tauri::command]
 fn preview_play(playing: bool, viewport: State<'_, ViewportController>) -> Result<(), String> {
     viewport.play(playing)
 }
@@ -371,6 +376,7 @@ pub fn run() {
             load_project,
             load_preview_audio,
             viewport_resize,
+            viewport_visible,
             preview_play,
             preview_seek,
             preview_reset,

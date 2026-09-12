@@ -25,8 +25,9 @@ use windows::{
     Win32::{
         Foundation::HWND,
         UI::WindowsAndMessaging::{
-            CreateWindowExW, DestroyWindow, HWND_TOP, SWP_NOACTIVATE, SWP_SHOWWINDOW, SetWindowPos,
-            WINDOW_EX_STYLE, WS_CHILD, WS_CLIPSIBLINGS, WS_VISIBLE,
+            CreateWindowExW, DestroyWindow, HWND_TOP, SW_HIDE, SW_SHOW, SWP_NOACTIVATE,
+            SWP_SHOWWINDOW, SetWindowPos, ShowWindow, WINDOW_EX_STYLE, WS_CHILD, WS_CLIPSIBLINGS,
+            WS_VISIBLE,
         },
     },
     core::w,
@@ -158,6 +159,17 @@ impl ViewportController {
         }
         .map_err(|error| format!("failed to resize viewport: {error}"))?;
         self.send(PreviewCommand::Resize { width, height })
+    }
+
+    pub fn set_visible(&self, visible: bool) {
+        // SAFETY: the controller owns this child HWND until Drop. ShowWindow's
+        // return value reports the previous visibility rather than failure.
+        unsafe {
+            let _ = ShowWindow(
+                HWND(self.hwnd as *mut _),
+                if visible { SW_SHOW } else { SW_HIDE },
+            );
+        }
     }
 
     pub fn set_project(&self, project: ProjectV1) -> Result<(), String> {

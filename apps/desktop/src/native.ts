@@ -13,6 +13,7 @@ export const updateProject = (project: ProjectData) => invoke<ProjectData>("upda
 export const saveProject = (path: string, project: ProjectData) => invoke<void>("save_project", { path, project });
 export const loadPreviewAudio = (path: string) => invoke<TimelineAudio>("load_preview_audio", { path });
 export const resizeViewport = (x: number, y: number, width: number, height: number) => invoke<void>("viewport_resize", { x, y, width, height });
+export const setViewportVisible = (visible: boolean) => invoke<void>("viewport_visible", { visible });
 export const setPreviewPlaying = (playing: boolean) => invoke<void>("preview_play", { playing });
 export const seekPreview = (frame: number) => invoke<void>("preview_seek", { frame });
 export const resetPreview = () => invoke<void>("preview_reset");

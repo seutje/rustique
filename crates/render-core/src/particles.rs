@@ -338,6 +338,26 @@ impl ParticleRenderer {
         render_config: BenchmarkConfig,
         clear: RgbaColor,
     ) -> Result<Vec<u8>, ParticleRenderError> {
+        self.render_timeline_frame_gpu(context, target, frame_index, timing, render_config, clear)?;
+        Ok(target.read_output(context)?)
+    }
+
+    /// Deterministically renders into the reusable post-processed GPU target
+    /// without reading pixels back to the CPU.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if timeline simulation or rendering fails.
+    #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
+    pub fn render_timeline_frame_gpu(
+        &mut self,
+        context: &GpuContext,
+        target: &OffscreenRenderTarget,
+        frame_index: u32,
+        timing: SimulationTiming,
+        render_config: BenchmarkConfig,
+        clear: RgbaColor,
+    ) -> Result<(), ParticleRenderError> {
         let reset_history = frame_index < self.timeline_frame || frame_index == 0;
         if frame_index < self.timeline_frame {
             self.reset(context);
@@ -440,9 +460,9 @@ impl ParticleRenderer {
             pass.set_bind_group(0, &self.bind_groups[self.source_index], &[]);
             pass.draw(0..self.particle_count.saturating_mul(6), 0..1);
         }
-        target.encode_readback(&mut encoder, reset_history);
+        target.encode_post_process(&mut encoder, reset_history);
         context.queue.submit([encoder.finish()]);
-        Ok(target.read_pixels(context)?)
+        Ok(())
     }
 
     /// Deterministically seeks to a timeline frame and saves it as PNG.

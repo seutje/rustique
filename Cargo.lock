@@ -3050,12 +3050,18 @@ dependencies = [
 name = "rustique-desktop"
 version = "0.1.0"
 dependencies = [
+ "audio-engine",
+ "pollster",
  "project-format",
+ "raw-window-handle",
  "render-core",
  "serde",
+ "simulation",
  "tauri",
  "tauri-build",
  "tokio",
+ "wgpu",
+ "windows 0.61.3",
 ]
 
 [[package]]

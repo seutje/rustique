@@ -647,24 +647,30 @@ Use the same engine for live preview.
 
 ## Tasks
 
-- [ ] Add window/surface rendering path
-- [ ] Share pipelines with offscreen renderer
-- [ ] Add resize handling
-- [ ] Add preview quality configuration
-- [ ] Add play/pause
-- [ ] Add timeline scrub
-- [ ] Add reset
-- [ ] Add realtime audio-position sampling
-- [ ] Add preview FPS display
-- [ ] Add particle count display
-- [ ] Add GPU timing display where practical
+- [x] Add window/surface rendering path
+  - Windows uses a native child `HWND` with direct wgpu swapchain presentation.
+- [x] Share pipelines with offscreen renderer
+  - Preview uses the shared GPU simulation and HDR/post-processing target without CPU readback.
+- [x] Add resize handling
+- [x] Add preview quality configuration
+- [x] Add play/pause
+- [x] Add timeline scrub
+- [x] Add reset
+- [x] Add realtime audio-position sampling
+- [x] Add preview FPS display
+- [x] Add particle count display
+- [-] Add GPU timing display where practical
+  - The diagnostics contract and UI field exist, but surface timestamp queries are not yet wired; the UI reports `GPU — ms`.
 
 ## Acceptance Criteria
 
-- [ ] Interactive viewport runs in Tauri
-- [ ] Preview uses same simulation code as offline rendering
-- [ ] Timeline scrubbing is functional
-- [ ] Preview quality can be reduced without changing project intent
+- [x] Interactive viewport runs in Tauri
+  - The embedded surface was validated interactively for playback, pause, resize, and layout clipping.
+- [x] Preview uses same simulation code as offline rendering
+- [x] Timeline scrubbing is functional
+  - Forward/backward seeks and deterministic duration wrapping were validated interactively.
+- [x] Preview quality can be reduced without changing project intent
+  - Quality levels retain deterministic particle prefixes at 100K, 500K, or the full project count.
 
 ---
 

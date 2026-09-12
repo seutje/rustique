@@ -160,8 +160,27 @@ impl OffscreenRenderTarget {
         self.post_processor.scene_view()
     }
 
+    #[must_use]
+    pub fn output_view(&self) -> wgpu::TextureView {
+        self.post_processor
+            .output()
+            .create_view(&wgpu::TextureViewDescriptor::default())
+    }
+
+    pub(crate) fn encode_post_process(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        reset_history: bool,
+    ) {
+        self.post_processor.encode(encoder, reset_history);
+    }
+
     pub(crate) fn encode_readback(&self, encoder: &mut wgpu::CommandEncoder, reset_history: bool) {
         self.post_processor.encode(encoder, reset_history);
+        self.encode_copy_to_readback(encoder);
+    }
+
+    fn encode_copy_to_readback(&self, encoder: &mut wgpu::CommandEncoder) {
         encoder.copy_texture_to_buffer(
             self.post_processor.output().as_image_copy(),
             wgpu::TexelCopyBufferInfo {
@@ -178,6 +197,17 @@ impl OffscreenRenderTarget {
                 depth_or_array_layers: 1,
             },
         );
+    }
+
+    pub(crate) fn read_output(&self, context: &GpuContext) -> Result<Vec<u8>, OffscreenError> {
+        let mut encoder = context
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("rustique-output-readback"),
+            });
+        self.encode_copy_to_readback(&mut encoder);
+        context.queue.submit([encoder.finish()]);
+        self.read_pixels(context)
     }
 
     /// Returns the bytes allocated by reusable color textures at this resolution.

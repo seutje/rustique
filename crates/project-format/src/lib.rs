@@ -48,6 +48,149 @@ pub struct CameraV1 {
     pub position: [f32; 3],
     pub target: [f32; 3],
     pub vertical_fov_degrees: f32,
+    #[serde(default = "default_up")]
+    pub up: [f32; 3],
+    #[serde(default = "default_near")]
+    pub near_plane: f32,
+    #[serde(default = "default_far")]
+    pub far_plane: f32,
+    #[serde(default)]
+    pub mode: CameraModeV1,
+    #[serde(default)]
+    pub orbit_degrees_per_second: f32,
+    #[serde(default)]
+    pub dolly_units_per_second: f32,
+    #[serde(default)]
+    pub drift_amplitude: [f32; 3],
+    #[serde(default = "default_drift_frequency")]
+    pub drift_frequency_hz: f32,
+    #[serde(default)]
+    pub fov_modulation_degrees: f32,
+    #[serde(default)]
+    pub shake_amplitude: f32,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CameraModeV1 {
+    #[default]
+    Static,
+    Orbit,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CameraSample {
+    pub position: [f32; 3],
+    pub target: [f32; 3],
+    pub up: [f32; 3],
+    pub vertical_fov_degrees: f32,
+    pub near_plane: f32,
+    pub far_plane: f32,
+}
+
+impl CameraV1 {
+    #[must_use]
+    pub fn sample(
+        &self,
+        time_seconds: f32,
+        fov_modulation: f32,
+        shake_modulation: f32,
+        seed: u64,
+    ) -> CameraSample {
+        let mut offset = subtract(self.position, self.target);
+        if self.mode == CameraModeV1::Orbit {
+            let angle = self.orbit_degrees_per_second.to_radians() * time_seconds;
+            let (sin, cos) = angle.sin_cos();
+            offset = [
+                offset[0] * cos + offset[2] * sin,
+                offset[1],
+                -offset[0] * sin + offset[2] * cos,
+            ];
+        }
+        let direction = normalize(offset);
+        let distance = (length(offset) + self.dolly_units_per_second * time_seconds).max(0.01);
+        let seed_bytes = seed.to_le_bytes();
+        let phase = f32::from(u16::from_le_bytes([seed_bytes[0], seed_bytes[1]])) * 0.000_1;
+        let drift_phase = time_seconds * self.drift_frequency_hz * std::f32::consts::TAU;
+        let drift = [
+            self.drift_amplitude[0] * (drift_phase + phase).sin(),
+            self.drift_amplitude[1] * (drift_phase * 0.83 + phase * 1.7).sin(),
+            self.drift_amplitude[2] * (drift_phase * 1.13 + phase * 2.3).sin(),
+        ];
+        let shake = self.shake_amplitude * shake_modulation.max(0.0);
+        let shake_offset = [
+            shake * (time_seconds * 37.0 + phase).sin(),
+            shake * (time_seconds * 43.0 + phase * 2.0).sin(),
+            shake * (time_seconds * 53.0 + phase * 3.0).sin(),
+        ];
+        CameraSample {
+            position: add(
+                add(add(self.target, scale(direction, distance)), drift),
+                shake_offset,
+            ),
+            target: add(self.target, scale(shake_offset, 0.35)),
+            up: self.up,
+            vertical_fov_degrees: (self.vertical_fov_degrees
+                + self.fov_modulation_degrees * fov_modulation)
+                .clamp(1.0, 179.0),
+            near_plane: self.near_plane,
+            far_plane: self.far_plane,
+        }
+    }
+}
+
+impl Default for CameraV1 {
+    fn default() -> Self {
+        Self {
+            position: [0.0, 0.0, 3.0],
+            target: [0.0; 3],
+            vertical_fov_degrees: 45.0,
+            up: default_up(),
+            near_plane: default_near(),
+            far_plane: default_far(),
+            mode: CameraModeV1::Static,
+            orbit_degrees_per_second: 0.0,
+            dolly_units_per_second: 0.0,
+            drift_amplitude: [0.0; 3],
+            drift_frequency_hz: default_drift_frequency(),
+            fov_modulation_degrees: 0.0,
+            shake_amplitude: 0.0,
+        }
+    }
+}
+
+const fn default_up() -> [f32; 3] {
+    [0.0, 1.0, 0.0]
+}
+const fn default_near() -> f32 {
+    0.01
+}
+const fn default_far() -> f32 {
+    1_000.0
+}
+const fn default_drift_frequency() -> f32 {
+    0.1
+}
+
+fn add(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+    [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+}
+fn subtract(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+fn scale(value: [f32; 3], factor: f32) -> [f32; 3] {
+    [value[0] * factor, value[1] * factor, value[2] * factor]
+}
+fn length(value: [f32; 3]) -> f32 {
+    (value[0] * value[0] + value[1] * value[1] + value[2] * value[2]).sqrt()
+}
+fn normalize(value: [f32; 3]) -> [f32; 3] {
+    let magnitude = length(value);
+    if magnitude > f32::EPSILON {
+        scale(value, 1.0 / magnitude)
+    } else {
+        [0.0, 0.0, 1.0]
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -110,6 +253,7 @@ impl ProjectV1 {
     /// # Errors
     ///
     /// Returns the first schema invariant violation found.
+    #[allow(clippy::too_many_lines)]
     pub fn validate(&self) -> Result<(), ProjectError> {
         if self.project_version != PROJECT_VERSION {
             return Err(ProjectError::Validation(format!(
@@ -154,6 +298,46 @@ impl ProjectV1 {
         {
             return Err(ProjectError::Validation(
                 "camera vertical FOV must be between 1 and 179 degrees".into(),
+            ));
+        }
+        if !self.camera.near_plane.is_finite()
+            || !self.camera.far_plane.is_finite()
+            || self.camera.near_plane <= 0.0
+            || self.camera.far_plane <= self.camera.near_plane
+        {
+            return Err(ProjectError::Validation(
+                "camera planes must be finite, positive, and ordered".into(),
+            ));
+        }
+        let camera_values = [
+            self.camera.orbit_degrees_per_second,
+            self.camera.dolly_units_per_second,
+            self.camera.drift_frequency_hz,
+            self.camera.fov_modulation_degrees,
+            self.camera.shake_amplitude,
+        ];
+        if !camera_values.iter().all(|value| value.is_finite())
+            || !self.camera.position.iter().all(|value| value.is_finite())
+            || !self.camera.target.iter().all(|value| value.is_finite())
+            || !self.camera.up.iter().all(|value| value.is_finite())
+            || !self
+                .camera
+                .drift_amplitude
+                .iter()
+                .all(|value| value.is_finite())
+        {
+            return Err(ProjectError::Validation(
+                "camera parameters must be finite".into(),
+            ));
+        }
+        if length(self.camera.up) <= f32::EPSILON
+            || length(subtract(self.camera.position, self.camera.target)) <= f32::EPSILON
+            || self.camera.drift_frequency_hz < 0.0
+            || self.camera.shake_amplitude < 0.0
+        {
+            return Err(ProjectError::Validation(
+                "camera direction vectors must be non-zero and procedural rates/amplitudes non-negative"
+                    .into(),
             ));
         }
         if !self
@@ -230,6 +414,7 @@ mod tests {
                 position: [0.0, 0.0, 3.0],
                 target: [0.0; 3],
                 vertical_fov_degrees: 45.0,
+                ..CameraV1::default()
             },
             render_defaults: RenderDefaultsV1 {
                 width: 1920,
@@ -270,5 +455,27 @@ mod tests {
             serde_json::from_str(include_str!("../../../examples/star-orbit.rustique.json"))
                 .unwrap();
         project.validate().unwrap();
+    }
+
+    #[test]
+    fn procedural_camera_is_deterministic_and_modulatable() {
+        let camera = CameraV1 {
+            mode: CameraModeV1::Orbit,
+            orbit_degrees_per_second: 30.0,
+            fov_modulation_degrees: 10.0,
+            shake_amplitude: 0.1,
+            ..CameraV1::default()
+        };
+        let first = camera.sample(1.0, 0.5, 0.75, 42);
+        let repeated = camera.sample(1.0, 0.5, 0.75, 42);
+        assert_eq!(first, repeated);
+        assert!((first.vertical_fov_degrees - 50.0).abs() < f32::EPSILON);
+        assert!(
+            first
+                .position
+                .iter()
+                .zip(camera.position)
+                .any(|(actual, original)| (actual - original).abs() > f32::EPSILON)
+        );
     }
 }

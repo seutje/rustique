@@ -21,7 +21,7 @@ use render_core::{
 };
 use simulation::SimulationTiming;
 
-use crate::ExportError;
+use crate::{ExportError, camera_matrix};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum VideoCodec {
@@ -175,6 +175,13 @@ pub fn export_video(
                 brightness: parameters.brightness,
                 active_particle_count: has_burst
                     .then_some(parameters.burst_emission.max(0.0) as u32),
+                view_projection: Some(camera_matrix(
+                    project,
+                    &parameters,
+                    time as f32,
+                    config.width,
+                    config.height,
+                )),
             },
             RgbaColor::new(background[0], background[1], background[2], background[3]),
         ) {

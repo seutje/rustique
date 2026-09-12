@@ -41,6 +41,8 @@ pub enum ModulationTarget {
     ParticleSize,
     Brightness,
     BurstEmission,
+    CameraFov,
+    CameraShake,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -85,6 +87,8 @@ pub struct ModulatedParameters {
     pub particle_size: f32,
     pub brightness: f32,
     pub burst_emission: f32,
+    pub camera_fov: f32,
+    pub camera_shake: f32,
 }
 
 impl Default for ModulatedParameters {
@@ -94,6 +98,8 @@ impl Default for ModulatedParameters {
             particle_size: 2.0,
             brightness: 1.0,
             burst_emission: 0.0,
+            camera_fov: 0.0,
+            camera_shake: 0.0,
         }
     }
 }
@@ -106,6 +112,8 @@ impl ModulatedParameters {
                 ModulationTarget::ParticleSize => self.particle_size = value.output_value,
                 ModulationTarget::Brightness => self.brightness = value.output_value,
                 ModulationTarget::BurstEmission => self.burst_emission = value.output_value,
+                ModulationTarget::CameraFov => self.camera_fov = value.output_value,
+                ModulationTarget::CameraShake => self.camera_shake = value.output_value,
             }
         }
     }

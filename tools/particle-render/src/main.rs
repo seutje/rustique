@@ -8,7 +8,7 @@ use exporter::{
 use project_format::{EnvelopeSmoother, ProjectV1, evaluate_mappings};
 use render_core::{
     BackendPreference, BenchmarkConfig, GpuConfig, GpuContext, OffscreenRenderTarget,
-    ParticleRenderer, PostProcessConfig, PostProcessQuality, RgbaColor,
+    ParticleRenderer, PerspectiveCamera, PostProcessConfig, PostProcessQuality, RgbaColor,
 };
 use simulation::{Force, SimulationTiming};
 
@@ -833,6 +833,7 @@ fn run_benchmark(context: &GpuContext, options: &BenchmarkOptions) -> Result<(),
     Ok(())
 }
 
+#[allow(clippy::cast_precision_loss)]
 fn render_project_still(
     context: &GpuContext,
     options: &StillOptions,
@@ -868,6 +869,12 @@ fn render_project_still(
             BenchmarkConfig {
                 particle_size_pixels: project.render_defaults.particle_size_pixels,
                 position_scale: 1.0,
+                view_projection: Some(project_camera_matrix(
+                    &project,
+                    options.frame as f32 / project.fps as f32,
+                    width,
+                    height,
+                )),
                 ..BenchmarkConfig::default()
             },
             RgbaColor::new(background[0], background[1], background[2], background[3]),
@@ -883,6 +890,25 @@ fn render_project_still(
         options.output.display()
     );
     Ok(())
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn project_camera_matrix(
+    project: &ProjectV1,
+    time_seconds: f32,
+    width: u32,
+    height: u32,
+) -> [[f32; 4]; 4] {
+    let camera = project.camera.sample(time_seconds, 0.0, 0.0, project.seed);
+    PerspectiveCamera {
+        position: camera.position,
+        target: camera.target,
+        up: camera.up,
+        vertical_fov_degrees: camera.vertical_fov_degrees,
+        near_plane: camera.near_plane,
+        far_plane: camera.far_plane,
+    }
+    .view_projection(width as f32 / height as f32)
 }
 
 fn parse_positive_float(name: &str, value: &str) -> Result<f32, String> {

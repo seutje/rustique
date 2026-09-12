@@ -99,4 +99,7 @@ Select the shared HDR/post-processing pipeline with
 [`docs/POST_PROCESSING.md`](docs/POST_PROCESSING.md) for effects and GPU memory
 usage.
 
+Perspective, orbit, dolly, drift, and audio-reactive camera settings are stored
+in project data. See [`docs/CAMERA.md`](docs/CAMERA.md).
+
 The future desktop editor belongs under `apps/desktop`; the render core and CLI do not depend on Tauri or a window.

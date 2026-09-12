@@ -12,7 +12,7 @@ use project_format::{
 };
 use render_core::{
     BenchmarkConfig, GpuContext, OffscreenError, OffscreenRenderTarget, ParticleRenderError,
-    ParticleRenderer, RgbaColor,
+    ParticleRenderer, PerspectiveCamera, RgbaColor,
 };
 use simulation::SimulationTiming;
 use std::{
@@ -152,6 +152,13 @@ pub fn render_png_sequence(
             force_scale: parameters.gravity_strength,
             brightness: parameters.brightness,
             active_particle_count: has_burst.then_some(parameters.burst_emission.max(0.0) as u32),
+            view_projection: Some(camera_matrix(
+                project,
+                &parameters,
+                time as f32,
+                config.width,
+                config.height,
+            )),
         };
         let clear = RgbaColor::new(background[0], background[1], background[2], background[3]);
         if frame < config.start_frame {
@@ -179,6 +186,31 @@ pub fn render_png_sequence(
     Ok(SequenceReport {
         frames_rendered: config.end_frame - config.start_frame,
     })
+}
+
+#[allow(clippy::cast_precision_loss)]
+pub(crate) fn camera_matrix(
+    project: &ProjectV1,
+    parameters: &ModulatedParameters,
+    time_seconds: f32,
+    width: u32,
+    height: u32,
+) -> [[f32; 4]; 4] {
+    let camera = project.camera.sample(
+        time_seconds,
+        parameters.camera_fov,
+        parameters.camera_shake,
+        project.seed,
+    );
+    PerspectiveCamera {
+        position: camera.position,
+        target: camera.target,
+        up: camera.up,
+        vertical_fov_degrees: camera.vertical_fov_degrees,
+        near_plane: camera.near_plane,
+        far_plane: camera.far_plane,
+    }
+    .view_projection(width as f32 / height as f32)
 }
 
 #[must_use]

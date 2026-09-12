@@ -514,22 +514,24 @@ Add reusable procedural camera behaviors.
 
 ## Tasks
 
-- [ ] Add perspective camera parameters
-- [ ] Add static camera
-- [ ] Add orbit camera
-- [ ] Add look-at target
-- [ ] Add dolly / distance control
-- [ ] Add procedural drift
-- [ ] Add FOV modulation
-- [ ] Add audio-reactive camera shake
-- [ ] Serialize camera settings
-- [ ] Keep camera independent from render resolution
+- [x] Add perspective camera parameters
+- [x] Add static camera
+- [x] Add orbit camera
+- [x] Add look-at target
+- [x] Add dolly / distance control
+- [x] Add procedural drift
+- [x] Add FOV modulation
+- [x] Add audio-reactive camera shake
+- [x] Serialize camera settings
+- [x] Keep camera independent from render resolution
 
 ## Acceptance Criteria
 
-- [ ] Camera settings load from project data
-- [ ] Camera can react to modulation
-- [ ] Star-system scenes can be navigated cinematically
+- [x] Camera settings load from project data
+- [x] Camera can react to modulation
+  - `camera_fov` and `camera_shake` targets use the same smoothed mapping pipeline as particle parameters.
+- [x] Star-system scenes can be navigated cinematically
+  - The example project now combines orbit, drift, FOV response, and transient shake.
 
 ---
 

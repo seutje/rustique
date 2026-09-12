@@ -41,6 +41,7 @@ pub struct BenchmarkConfig {
     pub force_scale: f32,
     pub brightness: f32,
     pub active_particle_count: Option<u32>,
+    pub view_projection: Option<[[f32; 4]; 4]>,
 }
 
 impl Default for BenchmarkConfig {
@@ -51,6 +52,7 @@ impl Default for BenchmarkConfig {
             force_scale: 1.0,
             brightness: 1.0,
             active_particle_count: None,
+            view_projection: None,
         }
     }
 }
@@ -343,7 +345,9 @@ impl ParticleRenderer {
         for frame in (self.timeline_frame + 1)..=frame_index {
             for substep in 0..timing.substeps() {
                 let uniforms = FrameUniforms {
-                    view_projection: aspect_matrix(target.dimensions()),
+                    view_projection: render_config
+                        .view_projection
+                        .unwrap_or_else(|| aspect_matrix(target.dimensions())),
                     frame_index: frame,
                     particle_count: self.particle_count,
                     delta_time: timing.substep_delta(),
@@ -388,7 +392,9 @@ impl ParticleRenderer {
         self.timeline_frame = frame_index;
 
         let uniforms = FrameUniforms {
-            view_projection: aspect_matrix(target.dimensions()),
+            view_projection: render_config
+                .view_projection
+                .unwrap_or_else(|| aspect_matrix(target.dimensions())),
             frame_index,
             particle_count: self.particle_count,
             delta_time: timing.substep_delta(),
@@ -477,7 +483,9 @@ impl ParticleRenderer {
     ) -> Result<FrameTiming, ParticleRenderError> {
         let started = Instant::now();
         let uniforms = FrameUniforms {
-            view_projection: aspect_matrix(target.dimensions()),
+            view_projection: config
+                .view_projection
+                .unwrap_or_else(|| aspect_matrix(target.dimensions())),
             frame_index,
             particle_count: self.particle_count,
             delta_time: 1.0 / fps,

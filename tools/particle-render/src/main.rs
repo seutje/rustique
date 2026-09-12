@@ -11,9 +11,9 @@ use project_format::{
 };
 use render_core::{
     BackendPreference, BenchmarkConfig, FluidConfig, FluidRenderer, GpuConfig, GpuContext,
-    OffscreenRenderTarget, ParticleRenderer, PerspectiveCamera, PostProcessConfig,
-    PostProcessQuality, RgbaColor, SpatialGrid, SpatialGridConfig, VolumetricConfig,
-    VolumetricQuality, VolumetricRenderer,
+    LiquidChromeConfig, LiquidChromeRenderer, OffscreenRenderTarget, ParticleRenderer,
+    PerspectiveCamera, PostProcessConfig, PostProcessQuality, RgbaColor, SpatialGrid,
+    SpatialGridConfig, VolumetricConfig, VolumetricQuality, VolumetricRenderer,
 };
 use simulation::{Force, SimulationTiming};
 
@@ -1233,7 +1233,7 @@ fn run_fluid(context: &GpuContext, options: &FluidOptions) -> Result<(), String>
     Ok(())
 }
 
-#[allow(clippy::cast_precision_loss)]
+#[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
 fn render_project_still(
     context: &GpuContext,
     options: &StillOptions,
@@ -1264,6 +1264,50 @@ fn render_project_still(
         PostProcessConfig::for_quality(options.post_quality),
     )
     .map_err(|error| format!("failed to create offscreen target: {error}"))?;
+    if project.render_mode == RenderModeV1::LiquidChrome {
+        let material = &project.liquid_chrome;
+        let environment = material.environment.as_ref().map(|path| {
+            project_path
+                .parent()
+                .unwrap_or_else(|| std::path::Path::new("."))
+                .join(path)
+        });
+        let renderer = LiquidChromeRenderer::new(
+            context,
+            width,
+            height,
+            &LiquidChromeConfig {
+                environment,
+                roughness: material.roughness,
+                reflection_intensity: material.reflection_intensity,
+                metallic: material.metallic,
+                surface_scale: material.surface_scale,
+            },
+        )
+        .map_err(|error| format!("failed to create liquid chrome renderer: {error}"))?;
+        let background = project.render_defaults.background;
+        renderer
+            .save_frame_png(
+                context,
+                &target,
+                options.frame as f32 / project.fps as f32,
+                material.roughness,
+                material.reflection_intensity,
+                material.surface_scale,
+                RgbaColor::new(background[0], background[1], background[2], background[3]),
+                &options.output,
+            )
+            .map_err(|error| format!("failed to render liquid chrome project still: {error}"))?;
+        println!(
+            "Rendered liquid chrome project {} frame {} at {}x{} to {}",
+            project_path.display(),
+            options.frame,
+            width,
+            height,
+            options.output.display()
+        );
+        return Ok(());
+    }
     if project.render_mode == RenderModeV1::Volumetric {
         let quality = match options.post_quality {
             PostProcessQuality::Draft => VolumetricQuality::Draft,

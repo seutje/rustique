@@ -49,6 +49,8 @@ pub struct ProjectV1 {
     #[serde(default)]
     pub render_mode: RenderModeV1,
     #[serde(default)]
+    pub liquid_chrome: LiquidChromeV1,
+    #[serde(default)]
     pub modulation_mappings: Vec<ModulationMapping>,
     #[serde(default)]
     pub automation_tracks: Vec<AutomationTrackV1>,
@@ -70,6 +72,53 @@ pub enum RenderModeV1 {
     #[default]
     Particles,
     Volumetric,
+    LiquidChrome,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LiquidChromeV1 {
+    /// Optional equirectangular PNG/JPEG/HDR environment, relative to the project.
+    #[serde(default)]
+    pub environment: Option<PathBuf>,
+    #[serde(default = "default_environment_preset")]
+    pub environment_preset: String,
+    #[serde(default = "default_roughness")]
+    pub roughness: f32,
+    #[serde(default = "default_reflection_intensity")]
+    pub reflection_intensity: f32,
+    #[serde(default = "default_metallic")]
+    pub metallic: f32,
+    #[serde(default = "default_surface_scale")]
+    pub surface_scale: f32,
+}
+
+impl Default for LiquidChromeV1 {
+    fn default() -> Self {
+        Self {
+            environment: None,
+            environment_preset: default_environment_preset(),
+            roughness: default_roughness(),
+            reflection_intensity: default_reflection_intensity(),
+            metallic: default_metallic(),
+            surface_scale: default_surface_scale(),
+        }
+    }
+}
+fn default_environment_preset() -> String {
+    "milky_way".into()
+}
+const fn default_roughness() -> f32 {
+    0.14
+}
+const fn default_reflection_intensity() -> f32 {
+    1.35
+}
+const fn default_metallic() -> f32 {
+    1.0
+}
+const fn default_surface_scale() -> f32 {
+    1.0
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -468,6 +517,21 @@ impl ProjectV1 {
                 "background channels must be finite values from 0 to 1".into(),
             ));
         }
+        let material = &self.liquid_chrome;
+        if !material.roughness.is_finite()
+            || !(0.0..=1.0).contains(&material.roughness)
+            || !material.metallic.is_finite()
+            || !(0.0..=1.0).contains(&material.metallic)
+            || !material.reflection_intensity.is_finite()
+            || material.reflection_intensity < 0.0
+            || !material.surface_scale.is_finite()
+            || material.surface_scale <= 0.0
+            || (material.environment.is_none() && material.environment_preset != "milky_way")
+        {
+            return Err(ProjectError::Validation(
+                "liquid chrome material values or environment preset are invalid".into(),
+            ));
+        }
         for mapping in &self.modulation_mappings {
             let values = [
                 mapping.amount,
@@ -565,6 +629,7 @@ mod tests {
                 background: [0.0, 0.0, 0.0, 1.0],
             },
             render_mode: RenderModeV1::Particles,
+            liquid_chrome: LiquidChromeV1::default(),
             modulation_mappings: Vec::new(),
             automation_tracks: Vec::new(),
             scene_markers: Vec::new(),

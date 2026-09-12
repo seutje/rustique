@@ -17,8 +17,9 @@ use project_format::{
     evaluate_automation, evaluate_mappings,
 };
 use render_core::{
-    BenchmarkConfig, GpuContext, OffscreenRenderTarget, ParticleRenderer, PostProcessConfig,
-    RgbaColor, VolumetricConfig, VolumetricQuality, VolumetricRenderer,
+    BenchmarkConfig, GpuContext, LiquidChromeConfig, LiquidChromeRenderer, OffscreenRenderTarget,
+    ParticleRenderer, PostProcessConfig, RgbaColor, VolumetricConfig, VolumetricQuality,
+    VolumetricRenderer,
 };
 use simulation::SimulationTiming;
 
@@ -155,6 +156,22 @@ pub fn export_video(
             VolumetricConfig::for_quality(volume_quality),
         )
     });
+    let chrome = (project.render_mode == RenderModeV1::LiquidChrome)
+        .then(|| {
+            LiquidChromeRenderer::new(
+                context,
+                config.width,
+                config.height,
+                &LiquidChromeConfig {
+                    environment: project.liquid_chrome.environment.clone(),
+                    roughness: project.liquid_chrome.roughness,
+                    reflection_intensity: project.liquid_chrome.reflection_intensity,
+                    metallic: project.liquid_chrome.metallic,
+                    surface_scale: project.liquid_chrome.surface_scale,
+                },
+            )
+        })
+        .transpose()?;
 
     let mut command = ffmpeg_command(project, config, &partial_path);
     let mut child = command.spawn().map_err(|source| ExportError::SpawnFfmpeg {
@@ -193,11 +210,26 @@ pub fn export_video(
         active.extend(evaluate_automation(&project.automation_tracks, time as f32));
         let mut parameters = ModulatedParameters {
             particle_size: project.render_defaults.particle_size_pixels,
+            material_roughness: project.liquid_chrome.roughness,
+            reflection_intensity: project.liquid_chrome.reflection_intensity,
+            surface_scale: project.liquid_chrome.surface_scale,
             ..ModulatedParameters::default()
         };
         parameters.apply(&active);
         let clear = RgbaColor::new(background[0], background[1], background[2], background[3]);
-        let result = if let Some(volume) = &volume {
+        let result = if let Some(chrome) = &chrome {
+            chrome
+                .render_frame(
+                    context,
+                    &target,
+                    time as f32,
+                    parameters.material_roughness,
+                    parameters.reflection_intensity,
+                    parameters.surface_scale,
+                    clear,
+                )
+                .map_err(ExportError::from)
+        } else if let Some(volume) = &volume {
             volume
                 .render_frame(context, &target, frame, project.fps, clear)
                 .map_err(ExportError::from)

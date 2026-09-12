@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 bytemuck = "1"
 log = "0.4"
+image = { version = "0.25", default-features = false, features = ["hdr", "jpeg", "png"] }
 png = "0.17"
 simulation = { path = "../simulation" }
 thiserror = "2"

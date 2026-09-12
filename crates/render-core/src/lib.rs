@@ -3,6 +3,7 @@
 mod camera;
 mod fluid;
 mod gpu;
+mod liquid_chrome;
 mod offscreen;
 mod particles;
 mod post_process;
@@ -13,6 +14,7 @@ mod volumetrics;
 pub use camera::PerspectiveCamera;
 pub use fluid::{FluidConfig, FluidError, FluidFrameStats, FluidRenderer};
 pub use gpu::{BackendPreference, GpuConfig, GpuContext, GpuInfo, GpuInitError};
+pub use liquid_chrome::{LiquidChromeConfig, LiquidChromeError, LiquidChromeRenderer};
 pub use offscreen::{OffscreenError, OffscreenRenderTarget, RgbaColor};
 pub use particles::{
     BenchmarkConfig, FrameTiming, FrameUniforms, ParticleRenderError, ParticleRenderer,

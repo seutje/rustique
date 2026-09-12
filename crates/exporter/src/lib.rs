@@ -13,9 +13,9 @@ use project_format::{
     evaluate_mappings,
 };
 use render_core::{
-    BenchmarkConfig, GpuContext, OffscreenError, OffscreenRenderTarget, ParticleRenderError,
-    ParticleRenderer, PerspectiveCamera, RgbaColor, VolumetricConfig, VolumetricQuality,
-    VolumetricRenderer,
+    BenchmarkConfig, GpuContext, LiquidChromeConfig, LiquidChromeError, LiquidChromeRenderer,
+    OffscreenError, OffscreenRenderTarget, ParticleRenderError, ParticleRenderer,
+    PerspectiveCamera, RgbaColor, VolumetricConfig, VolumetricQuality, VolumetricRenderer,
 };
 use simulation::SimulationTiming;
 use std::{
@@ -58,6 +58,8 @@ pub enum ExportError {
     Offscreen(#[from] OffscreenError),
     #[error(transparent)]
     Render(#[from] ParticleRenderError),
+    #[error(transparent)]
+    LiquidChrome(#[from] LiquidChromeError),
     #[error("output already exists: {0}")]
     OutputExists(PathBuf),
     #[error("failed to start FFmpeg executable {executable}: {source}")]
@@ -161,6 +163,22 @@ pub fn render_png_sequence(
             VolumetricConfig::for_quality(volume_quality),
         )
     });
+    let chrome = (project.render_mode == RenderModeV1::LiquidChrome)
+        .then(|| {
+            LiquidChromeRenderer::new(
+                context,
+                config.width,
+                config.height,
+                &LiquidChromeConfig {
+                    environment: project.liquid_chrome.environment.clone(),
+                    roughness: project.liquid_chrome.roughness,
+                    reflection_intensity: project.liquid_chrome.reflection_intensity,
+                    metallic: project.liquid_chrome.metallic,
+                    surface_scale: project.liquid_chrome.surface_scale,
+                },
+            )
+        })
+        .transpose()?;
     let mut smoothers = vec![EnvelopeSmoother::default(); project.modulation_mappings.len()];
     let has_burst = project
         .modulation_mappings
@@ -178,6 +196,9 @@ pub fn render_png_sequence(
         active.extend(evaluate_automation(&project.automation_tracks, time as f32));
         let mut parameters = ModulatedParameters {
             particle_size: project.render_defaults.particle_size_pixels,
+            material_roughness: project.liquid_chrome.roughness,
+            reflection_intensity: project.liquid_chrome.reflection_intensity,
+            surface_scale: project.liquid_chrome.surface_scale,
             ..ModulatedParameters::default()
         };
         parameters.apply(&active);
@@ -197,7 +218,17 @@ pub fn render_png_sequence(
         };
         let clear = RgbaColor::new(background[0], background[1], background[2], background[3]);
         if frame < config.start_frame {
-            if let Some(volume) = &volume {
+            if let Some(chrome) = &chrome {
+                let _pixels = chrome.render_frame(
+                    context,
+                    &target,
+                    time as f32,
+                    parameters.material_roughness,
+                    parameters.reflection_intensity,
+                    parameters.surface_scale,
+                    clear,
+                )?;
+            } else if let Some(volume) = &volume {
                 let _pixels = volume.render_frame(context, &target, frame, project.fps, clear)?;
             } else if let Some(renderer) = &mut renderer {
                 let _pixels = renderer.render_timeline_frame(
@@ -212,7 +243,18 @@ pub fn render_png_sequence(
             continue;
         }
         let path = frame_path(&config.output_directory, frame);
-        if let Some(volume) = &volume {
+        if let Some(chrome) = &chrome {
+            chrome.save_frame_png(
+                context,
+                &target,
+                time as f32,
+                parameters.material_roughness,
+                parameters.reflection_intensity,
+                parameters.surface_scale,
+                clear,
+                path,
+            )?;
+        } else if let Some(volume) = &volume {
             volume.save_frame_png(context, &target, frame, project.fps, clear, path)?;
         } else if let Some(renderer) = &mut renderer {
             renderer.save_timeline_frame_png(

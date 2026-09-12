@@ -43,6 +43,9 @@ pub enum ModulationTarget {
     BurstEmission,
     CameraFov,
     CameraShake,
+    MaterialRoughness,
+    ReflectionIntensity,
+    SurfaceScale,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -95,6 +98,9 @@ pub struct ModulatedParameters {
     pub burst_emission: f32,
     pub camera_fov: f32,
     pub camera_shake: f32,
+    pub material_roughness: f32,
+    pub reflection_intensity: f32,
+    pub surface_scale: f32,
 }
 
 impl Default for ModulatedParameters {
@@ -106,6 +112,9 @@ impl Default for ModulatedParameters {
             burst_emission: 0.0,
             camera_fov: 0.0,
             camera_shake: 0.0,
+            material_roughness: 0.14,
+            reflection_intensity: 1.35,
+            surface_scale: 1.0,
         }
     }
 }
@@ -120,6 +129,11 @@ impl ModulatedParameters {
                 ModulationTarget::BurstEmission => self.burst_emission = value.output_value,
                 ModulationTarget::CameraFov => self.camera_fov = value.output_value,
                 ModulationTarget::CameraShake => self.camera_shake = value.output_value,
+                ModulationTarget::MaterialRoughness => self.material_roughness = value.output_value,
+                ModulationTarget::ReflectionIntensity => {
+                    self.reflection_intensity = value.output_value;
+                }
+                ModulationTarget::SurfaceScale => self.surface_scale = value.output_value,
             }
         }
     }

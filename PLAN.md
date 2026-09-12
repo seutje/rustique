@@ -1043,20 +1043,25 @@ Build a convincing reflective liquid-metal system.
 
 ## Tasks
 
-- [ ] Add environment map loading
-- [ ] Add HDRI support
-- [ ] Add PBR-like metallic shading
-- [ ] Add roughness
-- [ ] Add reflection intensity
-- [ ] Add fluid/metaball surface source
-- [ ] Add normal generation
-- [ ] Add Milky Way environment preset
-- [ ] Add audio-reactive material modulation
+- [x] Add environment map loading
+- [x] Add HDRI support
+- [x] Add PBR-like metallic shading
+- [x] Add roughness
+- [x] Add reflection intensity
+- [x] Add fluid/metaball surface source
+- [x] Add normal generation
+- [x] Add Milky Way environment preset
+- [x] Add audio-reactive material modulation
 
 ## Acceptance Criteria
 
-- [ ] Liquid Chrome can reflect an HDRI/image environment
-- [ ] Material parameters are tweakable and modulatable
+- [x] Liquid Chrome can reflect an HDRI/image environment
+- [x] Material parameters are tweakable and modulatable
+
+  - The headless liquid-chrome path raymarches a deterministic metaball SDF and
+    supports equirectangular HDR/PNG/JPEG inputs plus a built-in Milky Way map.
+    Roughness, reflection intensity, and surface scale use the shared offline
+    modulation system; see `docs/LIQUID_CHROME.md`.
 
 ---
 

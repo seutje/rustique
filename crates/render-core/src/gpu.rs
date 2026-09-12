@@ -32,6 +32,7 @@ pub struct GpuConfig {
 /// Adapter information useful for diagnostics and render manifests.
 #[derive(Clone, Debug)]
 pub struct GpuInfo {
+    pub instance_flags: wgpu::InstanceFlags,
     pub adapter: wgpu::AdapterInfo,
     pub limits: wgpu::Limits,
     pub features: wgpu::Features,
@@ -39,6 +40,7 @@ pub struct GpuInfo {
 
 impl fmt::Display for GpuInfo {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(formatter, "Instance flags: {:?}", self.instance_flags)?;
         writeln!(formatter, "Adapter: {}", self.adapter.name)?;
         writeln!(formatter, "Backend: {:?}", self.adapter.backend)?;
         writeln!(formatter, "Device type: {:?}", self.adapter.device_type)?;
@@ -69,6 +71,7 @@ fn display_unknown(value: &str) -> &str {
 #[derive(Debug)]
 pub struct GpuContext {
     pub instance: wgpu::Instance,
+    pub instance_flags: wgpu::InstanceFlags,
     pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
@@ -96,9 +99,12 @@ impl GpuContext {
     /// cannot create a logical device.
     pub async fn new(config: GpuConfig) -> Result<Self, GpuInitError> {
         let backends = config.backend.backends().with_env();
+        let instance_flags = wgpu::InstanceFlags::default().with_env();
         log::info!("requested GPU backend set: {backends:?}");
+        log::info!("resolved GPU instance flags: {instance_flags:?}");
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends,
+            flags: instance_flags,
             ..Default::default()
         });
 
@@ -136,6 +142,7 @@ impl GpuContext {
 
         Ok(Self {
             instance,
+            instance_flags,
             adapter,
             device,
             queue,
@@ -145,6 +152,7 @@ impl GpuContext {
     #[must_use]
     pub fn info(&self) -> GpuInfo {
         GpuInfo {
+            instance_flags: self.instance_flags,
             adapter: self.adapter.get_info(),
             limits: self.adapter.limits(),
             features: self.adapter.features(),

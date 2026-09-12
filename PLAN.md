@@ -94,6 +94,8 @@ Turn the GPU smoke test into a reusable render-core library that owns wgpu initi
   - [x] Vulkan
   - [x] Honor `WGPU_BACKEND` through wgpu's environment-aware backend selection
     - GPU initialization logs the requested backend set and selected adapter backend.
+  - [x] Honor wgpu instance flag environment overrides without enabling noncompliant adapters by default
+    - `--gpu-info` reports the resolved instance flags, including opt-in `WGPU_ALLOW_UNDERLYING_NONCOMPLIANT_ADAPTER`.
 
 ## Acceptance Criteria
 

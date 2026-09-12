@@ -5,7 +5,10 @@ use exporter::{
     CancellationToken, PngSequenceConfig, VideoCodec, VideoExportConfig, export_video,
     render_png_sequence,
 };
-use project_format::{EnvelopeSmoother, ProjectV1, evaluate_mappings};
+use project_format::{
+    AssetKind, EnvelopeSmoother, PackageAsset, PackageCreateOptions, ProjectV1, RenderPackage,
+    evaluate_mappings,
+};
 use render_core::{
     BackendPreference, BenchmarkConfig, GpuConfig, GpuContext, OffscreenRenderTarget,
     ParticleRenderer, PerspectiveCamera, PostProcessConfig, PostProcessQuality, RgbaColor,
@@ -37,6 +40,12 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
     }
     if let Some(Command::ModulationInfo(modulation)) = &options.command {
         return run_modulation_info(modulation);
+    }
+    if let Some(Command::PackageCreate(package)) = &options.command {
+        return run_package_create(package);
+    }
+    if let Some(Command::PackageValidate(path)) = &options.command {
+        return run_package_validate(path);
     }
     let context = pollster::block_on(GpuContext::new(GpuConfig {
         backend: options.backend,
@@ -111,6 +120,9 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
         Some(Command::ModulationInfo(_)) => {
             unreachable!("modulation command returned before GPU setup")
         }
+        Some(Command::PackageCreate(_) | Command::PackageValidate(_)) => {
+            unreachable!("package command returned before GPU setup")
+        }
         Some(Command::Sequence(sequence)) => run_sequence(&context, &sequence),
         Some(Command::Video(video)) => run_video(&context, &video),
         None => Err("no command specified; use still, --gpu-info, or --help".into()),
@@ -134,6 +146,8 @@ enum Command {
     ModulationInfo(ModulationInfoOptions),
     Sequence(SequenceOptions),
     Video(VideoOptions),
+    PackageCreate(PackageCreateCliOptions),
+    PackageValidate(PathBuf),
 }
 
 #[derive(Debug, PartialEq)]
@@ -231,7 +245,7 @@ struct ModulationInfoOptions {
 #[derive(Debug, PartialEq)]
 struct SequenceOptions {
     project: PathBuf,
-    audio: PathBuf,
+    audio: Option<PathBuf>,
     output_directory: PathBuf,
     start_frame: u32,
     frame_count: Option<u32>,
@@ -243,7 +257,7 @@ struct SequenceOptions {
 #[derive(Debug, PartialEq)]
 struct VideoOptions {
     project: PathBuf,
-    audio: PathBuf,
+    audio: Option<PathBuf>,
     output: PathBuf,
     start_frame: u32,
     frame_count: Option<u32>,
@@ -252,6 +266,16 @@ struct VideoOptions {
     codec: VideoCodec,
     ffmpeg_path: PathBuf,
     post_quality: PostProcessQuality,
+}
+
+#[derive(Debug, PartialEq)]
+struct PackageCreateCliOptions {
+    project: PathBuf,
+    audio: PathBuf,
+    output: PathBuf,
+    width: Option<u32>,
+    height: Option<u32>,
+    assets: Vec<PackageAsset>,
 }
 
 impl CliOptions {
@@ -287,6 +311,19 @@ impl CliOptions {
                 "video" => {
                     let video = VideoOptions::parse(&mut args, &mut options.backend)?;
                     set_command(&mut options.command, Command::Video(video))?;
+                }
+                "package-create" => {
+                    set_command(
+                        &mut options.command,
+                        Command::PackageCreate(PackageCreateCliOptions::parse(&mut args)?),
+                    )?;
+                }
+                "package-validate" => {
+                    let path = PathBuf::from(required_value(&mut args, "package-validate")?);
+                    if let Some(extra) = args.next() {
+                        return Err(format!("unknown package-validate argument: {extra}"));
+                    }
+                    set_command(&mut options.command, Command::PackageValidate(path))?;
                 }
                 "-h" | "--help" => options.help = true,
                 "--backend" => {
@@ -537,7 +574,7 @@ impl SequenceOptions {
         }
         Ok(Self {
             project,
-            audio: audio.ok_or_else(|| "sequence requires --audio <path>".to_owned())?,
+            audio,
             output_directory: output_directory
                 .ok_or_else(|| "sequence requires --output-dir <path>".to_owned())?,
             start_frame,
@@ -598,7 +635,7 @@ impl VideoOptions {
         }
         Ok(Self {
             project,
-            audio: audio.ok_or_else(|| "video requires --audio <path>".to_owned())?,
+            audio,
             output: output.ok_or_else(|| "video requires --output <path>".to_owned())?,
             start_frame,
             frame_count,
@@ -609,6 +646,84 @@ impl VideoOptions {
             post_quality,
         })
     }
+}
+
+impl PackageCreateCliOptions {
+    fn parse(args: &mut impl Iterator<Item = String>) -> Result<Self, String> {
+        let project = PathBuf::from(required_value(args, "package-create project")?);
+        let mut audio = None;
+        let mut output = None;
+        let mut width = None;
+        let mut height = None;
+        let mut assets = Vec::new();
+        while let Some(argument) = args.next() {
+            match argument.as_str() {
+                "--audio" => audio = Some(PathBuf::from(required_value(args, "--audio")?)),
+                "--output" => output = Some(PathBuf::from(required_value(args, "--output")?)),
+                "--width" => {
+                    width = Some(parse_dimension("width", &required_value(args, "--width")?)?);
+                }
+                "--height" => {
+                    height = Some(parse_dimension(
+                        "height",
+                        &required_value(args, "--height")?,
+                    )?);
+                }
+                "--texture" | "--hdri" | "--mesh" => {
+                    let kind = match argument.as_str() {
+                        "--texture" => AssetKind::Texture,
+                        "--hdri" => AssetKind::Hdri,
+                        _ => AssetKind::Mesh,
+                    };
+                    assets.push(PackageAsset {
+                        kind,
+                        source: PathBuf::from(required_value(args, &argument)?),
+                    });
+                }
+                _ => return Err(format!("unknown package-create argument: {argument}")),
+            }
+        }
+        Ok(Self {
+            project,
+            audio: audio.ok_or_else(|| "package-create requires --audio <path>".to_owned())?,
+            output: output.ok_or_else(|| {
+                "package-create requires --output <directory.rustiqueproject>".to_owned()
+            })?,
+            width,
+            height,
+            assets,
+        })
+    }
+}
+
+fn run_package_create(options: &PackageCreateCliOptions) -> Result<(), String> {
+    let package = RenderPackage::create(&PackageCreateOptions {
+        project: options.project.clone(),
+        audio: options.audio.clone(),
+        output: options.output.clone(),
+        width: options.width,
+        height: options.height,
+        assets: options.assets.clone(),
+    })
+    .map_err(|error| error.to_string())?;
+    println!(
+        "Created and validated render package {} ({}x{})",
+        options.output.display(),
+        package.render.width,
+        package.render.height
+    );
+    Ok(())
+}
+
+fn run_package_validate(path: &PathBuf) -> Result<(), String> {
+    let package = RenderPackage::load(path).map_err(|error| error.to_string())?;
+    println!(
+        "Valid render package {} (project {}, audio {})",
+        path.display(),
+        package.project_path().display(),
+        package.audio_path().display()
+    );
+    Ok(())
 }
 
 fn run_audio_info(options: &AudioInfoOptions) -> Result<(), String> {
@@ -679,9 +794,10 @@ fn run_modulation_info(options: &ModulationInfoOptions) -> Result<(), String> {
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn run_sequence(context: &GpuContext, options: &SequenceOptions) -> Result<(), String> {
-    let project = ProjectV1::load(&options.project).map_err(|error| error.to_string())?;
-    let analysis = analyze_cached(&options.audio, AnalysisConfig::default())
-        .map_err(|error| error.to_string())?;
+    let (project, audio, package_dimensions) =
+        load_render_input(&options.project, options.audio.as_ref())?;
+    let analysis =
+        analyze_cached(&audio, AnalysisConfig::default()).map_err(|error| error.to_string())?;
     let seconds = f64::from(project.duration_seconds).min(analysis.duration_seconds);
     let default_end = (seconds * f64::from(project.fps))
         .floor()
@@ -697,8 +813,12 @@ fn run_sequence(context: &GpuContext, options: &SequenceOptions) -> Result<(), S
             output_directory: options.output_directory.clone(),
             start_frame: options.start_frame,
             end_frame,
-            width: options.width.unwrap_or(project.render_defaults.width),
-            height: options.height.unwrap_or(project.render_defaults.height),
+            width: options.width.unwrap_or(
+                package_dimensions.map_or(project.render_defaults.width, |value| value.0),
+            ),
+            height: options.height.unwrap_or(
+                package_dimensions.map_or(project.render_defaults.height, |value| value.1),
+            ),
             post_process: PostProcessConfig::for_quality(options.post_quality),
         },
     )
@@ -713,9 +833,10 @@ fn run_sequence(context: &GpuContext, options: &SequenceOptions) -> Result<(), S
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn run_video(context: &GpuContext, options: &VideoOptions) -> Result<(), String> {
-    let project = ProjectV1::load(&options.project).map_err(|error| error.to_string())?;
-    let analysis = analyze_cached(&options.audio, AnalysisConfig::default())
-        .map_err(|error| error.to_string())?;
+    let (project, audio, package_dimensions) =
+        load_render_input(&options.project, options.audio.as_ref())?;
+    let analysis =
+        analyze_cached(&audio, AnalysisConfig::default()).map_err(|error| error.to_string())?;
     let seconds = f64::from(project.duration_seconds).min(analysis.duration_seconds);
     let default_end = (seconds * f64::from(project.fps))
         .floor()
@@ -733,12 +854,20 @@ fn run_video(context: &GpuContext, options: &VideoOptions) -> Result<(), String>
         &analysis,
         &VideoExportConfig {
             ffmpeg_path: options.ffmpeg_path.clone(),
-            audio_path: options.audio.clone(),
+            audio_path: audio,
             output_path: options.output.clone(),
-            width: options.width.unwrap_or(project.render_defaults.width),
-            height: options.height.unwrap_or(project.render_defaults.height),
-            output_width: options.width.unwrap_or(project.render_defaults.width),
-            output_height: options.height.unwrap_or(project.render_defaults.height),
+            width: options.width.unwrap_or(
+                package_dimensions.map_or(project.render_defaults.width, |value| value.0),
+            ),
+            height: options.height.unwrap_or(
+                package_dimensions.map_or(project.render_defaults.height, |value| value.1),
+            ),
+            output_width: options.width.unwrap_or(
+                package_dimensions.map_or(project.render_defaults.width, |value| value.0),
+            ),
+            output_height: options.height.unwrap_or(
+                package_dimensions.map_or(project.render_defaults.height, |value| value.1),
+            ),
             motion_blur_samples: 1,
             start_frame: options.start_frame,
             end_frame,
@@ -764,6 +893,29 @@ fn run_video(context: &GpuContext, options: &VideoOptions) -> Result<(), String>
         options.output.display()
     );
     Ok(())
+}
+
+type LoadedRenderInput = (ProjectV1, PathBuf, Option<(u32, u32)>);
+
+fn load_render_input(
+    input: &PathBuf,
+    audio_override: Option<&PathBuf>,
+) -> Result<LoadedRenderInput, String> {
+    if input.is_dir() {
+        let package = RenderPackage::load(input).map_err(|error| error.to_string())?;
+        if audio_override.is_some() {
+            return Err("--audio cannot be used with a render package".into());
+        }
+        let audio = package.audio_path();
+        let dimensions = Some((package.render.width, package.render.height));
+        Ok((package.project, audio, dimensions))
+    } else {
+        let audio = audio_override.cloned().ok_or_else(|| {
+            "--audio <path> is required when the input is a project JSON file".to_owned()
+        })?;
+        let project = ProjectV1::load(input).map_err(|error| error.to_string())?;
+        Ok((project, audio, None))
+    }
 }
 
 fn parse_non_negative_float(name: &str, value: &str) -> Result<f64, String> {
@@ -842,10 +994,24 @@ fn render_project_still(
     options: &StillOptions,
     project_path: &PathBuf,
 ) -> Result<(), String> {
-    let project = ProjectV1::load(project_path)
-        .map_err(|error| format!("failed to load project: {error}"))?;
-    let width = options.width.unwrap_or(project.render_defaults.width);
-    let height = options.height.unwrap_or(project.render_defaults.height);
+    let (project, package_dimensions) = if project_path.is_dir() {
+        let package = RenderPackage::load(project_path)
+            .map_err(|error| format!("failed to load package: {error}"))?;
+        let dimensions = Some((package.render.width, package.render.height));
+        (package.project, dimensions)
+    } else {
+        (
+            ProjectV1::load(project_path)
+                .map_err(|error| format!("failed to load project: {error}"))?,
+            None,
+        )
+    };
+    let width = options
+        .width
+        .unwrap_or(package_dimensions.map_or(project.render_defaults.width, |value| value.0));
+    let height = options
+        .height
+        .unwrap_or(package_dimensions.map_or(project.render_defaults.height, |value| value.1));
     let target = OffscreenRenderTarget::new_with_post_process(
         context,
         width,
@@ -1037,9 +1203,12 @@ fn print_help() {
          [--backend auto|dx12|vulkan]\n\
          particle-render audio-info <audio-path> [--time seconds]\n\
          particle-render modulation-info <project.json> <audio-path> [--time seconds]\n\
-         particle-render sequence <project.json> --audio <path> --output-dir <path> \
+         particle-render package-create <project.json> --audio <path> --output <name.rustiqueproject> \
+         [--width W] [--height H] [--texture <path>] [--hdri <path>] [--mesh <path>]\n\
+         particle-render package-validate <name.rustiqueproject>\n\
+         particle-render sequence <project.json|package.rustiqueproject> [--audio <path>] --output-dir <path> \
          [--start-frame 0] [--frames N] [--width W] [--height H] [--post-quality preview]\n\
-         particle-render video <project.json> --audio <path> --output <path> \
+         particle-render video <project.json|package.rustiqueproject> [--audio <path>] --output <path> \
          [--codec h264|hevc|prores422hq|prores4444] [--start-frame 0] \
          [--frames N] [--width W] [--height H] [--ffmpeg <path>] [--post-quality preview]"
     );
@@ -1234,6 +1403,32 @@ mod tests {
                 frame_count: Some(60),
                 ..
             }))
+        ));
+    }
+
+    #[test]
+    fn parses_package_creation_assets() {
+        let options = CliOptions::parse(
+            [
+                "package-create",
+                "project.json",
+                "--audio",
+                "track.wav",
+                "--output",
+                "job.rustiqueproject",
+                "--texture",
+                "mask.png",
+                "--mesh",
+                "object.glb",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .unwrap();
+        assert!(matches!(
+            options.command,
+            Some(Command::PackageCreate(PackageCreateCliOptions { assets, .. }))
+                if assets.len() == 2
         ));
     }
 

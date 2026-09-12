@@ -3,6 +3,7 @@
 mod audio_profile;
 mod automation;
 mod modulation;
+mod package;
 mod preset;
 
 pub use audio_profile::{
@@ -14,6 +15,9 @@ pub use automation::{AutomationKeyframeV1, AutomationTrackV1, SceneMarkerV1, eva
 pub use modulation::{
     ActiveModulation, EnvelopeSmoother, ModulatedParameters, ModulationCurve, ModulationMapping,
     ModulationPolarity, ModulationSource, ModulationTarget, evaluate_mappings,
+};
+pub use package::{
+    AssetKind, PackageAsset, PackageCreateOptions, PackageError, RenderConfigV1, RenderPackage,
 };
 pub use preset::{
     MacroParameterV1, MacroTargetV1, PresetOverridesV1, PresetSelectionV1, VisualPresetV1,

@@ -815,24 +815,26 @@ Make projects portable to Linux / cloud renderers.
 
 ## Tasks
 
-- [ ] Define `.rustiqueproject` or directory-based package layout
-- [ ] Bundle:
-  - [ ] project JSON
-  - [ ] render config
-  - [ ] audio
-  - [ ] textures
-  - [ ] HDRIs
-  - [ ] meshes
-- [ ] Add package validation
-- [ ] Add relative asset paths
-- [ ] Add package creation command
-- [ ] Add package load command
-- [ ] Add checksum or asset fingerprinting if useful
+- [x] Define `.rustiqueproject` or directory-based package layout
+- [x] Bundle:
+  - [x] project JSON
+  - [x] render config
+  - [x] audio
+  - [x] textures
+  - [x] HDRIs
+  - [x] meshes
+- [x] Add package validation
+- [x] Add relative asset paths
+- [x] Add package creation command
+- [x] Add package load command
+- [x] Add checksum or asset fingerprinting if useful
 
 ## Acceptance Criteria
 
-- [ ] A package renders without access to original local asset paths
-- [ ] Same package can be moved between machines
+- [x] A package renders without access to original local asset paths
+  - Package tests delete the original inputs and load from the moved package.
+- [x] Same package can be moved between machines
+  - Package paths are relative and platform-neutral; Linux execution is validated in Phase 23.
 
 ---
 

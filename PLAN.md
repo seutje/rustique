@@ -1017,19 +1017,21 @@ Support nebula, smoke, glow, and density-based scenes.
 
 ## Tasks
 
-- [ ] Add 3D density texture or sparse alternative
-- [ ] Add particle-to-volume splatting
-- [ ] Add raymarching
-- [ ] Add light absorption
-- [ ] Add emission
-- [ ] Add quality-controlled ray steps
-- [ ] Add temporal accumulation
-- [ ] Add half-resolution preview mode
+- [x] Add 3D density texture or sparse alternative
+- [x] Add particle-to-volume splatting
+- [x] Add raymarching
+- [x] Add light absorption
+- [x] Add emission
+- [x] Add quality-controlled ray steps
+- [x] Add temporal accumulation
+- [x] Add half-resolution preview mode
 
 ## Acceptance Criteria
 
-- [ ] Nebula preset can use real volumetric rendering
-- [ ] Volumetric quality scales independently between preview and export
+- [x] Nebula preset can use real volumetric rendering
+- [x] Volumetric quality scales independently between preview and export
+
+  - The headless volumetric pipeline uses a reusable atomic density grid and deterministic particle splatting. Draft/preview/final select independent grid, ray-step, and sampling levels; see `docs/VOLUMETRICS.md`.
 
 ---
 

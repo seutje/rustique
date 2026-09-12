@@ -9,6 +9,7 @@ use simulation::Force;
 
 use crate::{
     CameraV1, ModulationMapping, ParticleSystemV1, ProjectError, ProjectV1, RenderDefaultsV1,
+    RenderModeV1,
 };
 
 pub const PRESET_VERSION: u32 = 1;
@@ -26,6 +27,8 @@ pub struct VisualPresetV1 {
     pub forces: Vec<Force>,
     pub camera: CameraV1,
     pub render_defaults: RenderDefaultsV1,
+    #[serde(default)]
+    pub render_mode: RenderModeV1,
     #[serde(default)]
     pub macros: Vec<MacroParameterV1>,
     #[serde(default)]
@@ -113,6 +116,7 @@ impl VisualPresetV1 {
         project.forces.clone_from(&self.forces);
         project.camera = self.camera.clone();
         project.render_defaults = self.render_defaults.clone();
+        project.render_mode = self.render_mode;
         project
             .modulation_mappings
             .clone_from(&self.recommended_mappings);

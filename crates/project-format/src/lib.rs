@@ -47,6 +47,8 @@ pub struct ProjectV1 {
     pub camera: CameraV1,
     pub render_defaults: RenderDefaultsV1,
     #[serde(default)]
+    pub render_mode: RenderModeV1,
+    #[serde(default)]
     pub modulation_mappings: Vec<ModulationMapping>,
     #[serde(default)]
     pub automation_tracks: Vec<AutomationTrackV1>,
@@ -60,6 +62,14 @@ pub struct ProjectV1 {
     pub reaction_profile: Option<ReactionProfileSelectionV1>,
     #[serde(skip)]
     pub resolved_audio_profile: Option<ResolvedAudioProfile>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RenderModeV1 {
+    #[default]
+    Particles,
+    Volumetric,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -554,6 +564,7 @@ mod tests {
                 particle_size_pixels: 2.0,
                 background: [0.0, 0.0, 0.0, 1.0],
             },
+            render_mode: RenderModeV1::Particles,
             modulation_mappings: Vec::new(),
             automation_tracks: Vec::new(),
             scene_markers: Vec::new(),

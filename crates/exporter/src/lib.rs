@@ -7,13 +7,15 @@ pub use video::{
 };
 
 use audio_engine::AudioAnalysis;
+use project_format::RenderModeV1;
 use project_format::{
     EnvelopeSmoother, ModulatedParameters, ModulationTarget, ProjectV1, evaluate_automation,
     evaluate_mappings,
 };
 use render_core::{
     BenchmarkConfig, GpuContext, OffscreenError, OffscreenRenderTarget, ParticleRenderError,
-    ParticleRenderer, PerspectiveCamera, RgbaColor,
+    ParticleRenderer, PerspectiveCamera, RgbaColor, VolumetricConfig, VolumetricQuality,
+    VolumetricRenderer,
 };
 use simulation::SimulationTiming;
 use std::{
@@ -50,6 +52,8 @@ pub enum ExportError {
     },
     #[error("project timing must use non-zero FPS and substeps")]
     InvalidTiming,
+    #[error("renderer was not initialized for the selected project render mode")]
+    MissingRenderer,
     #[error(transparent)]
     Offscreen(#[from] OffscreenError),
     #[error(transparent)]
@@ -96,7 +100,8 @@ pub enum ExportError {
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
-    clippy::cast_sign_loss
+    clippy::cast_sign_loss,
+    clippy::too_many_lines
 )]
 pub fn render_png_sequence(
     context: &GpuContext,
@@ -120,14 +125,42 @@ pub fn render_png_sequence(
     let substeps =
         NonZeroU32::new(project.particle_system.substeps).ok_or(ExportError::InvalidTiming)?;
     let timing = SimulationTiming::new(fps, fps, substeps);
+    let mut post_process = config.post_process;
+    if project.render_mode == RenderModeV1::Volumetric {
+        post_process.trails = true;
+        post_process.trail_decay = if config.post_process.trails {
+            0.82
+        } else {
+            0.65
+        };
+    }
     let target = OffscreenRenderTarget::new_with_post_process(
         context,
         config.width,
         config.height,
-        config.post_process,
+        post_process,
     )?;
-    let mut renderer = ParticleRenderer::new(context, project.particle_system.count, project.seed)?;
-    renderer.set_forces(context, &project.forces)?;
+    let mut renderer = (project.render_mode == RenderModeV1::Particles)
+        .then(|| ParticleRenderer::new(context, project.particle_system.count, project.seed))
+        .transpose()?;
+    if let Some(renderer) = &mut renderer {
+        renderer.set_forces(context, &project.forces)?;
+    }
+    let volume_quality = if config.post_process.trails {
+        VolumetricQuality::Final
+    } else if config.post_process.bloom {
+        VolumetricQuality::Preview
+    } else {
+        VolumetricQuality::Draft
+    };
+    let volume = (project.render_mode == RenderModeV1::Volumetric).then(|| {
+        VolumetricRenderer::new(
+            context,
+            project.particle_system.count,
+            project.seed,
+            VolumetricConfig::for_quality(volume_quality),
+        )
+    });
     let mut smoothers = vec![EnvelopeSmoother::default(); project.modulation_mappings.len()];
     let has_burst = project
         .modulation_mappings
@@ -164,26 +197,34 @@ pub fn render_png_sequence(
         };
         let clear = RgbaColor::new(background[0], background[1], background[2], background[3]);
         if frame < config.start_frame {
-            let _pixels = renderer.render_timeline_frame(
+            if let Some(volume) = &volume {
+                let _pixels = volume.render_frame(context, &target, frame, project.fps, clear)?;
+            } else if let Some(renderer) = &mut renderer {
+                let _pixels = renderer.render_timeline_frame(
+                    context,
+                    &target,
+                    frame,
+                    timing,
+                    render_config,
+                    clear,
+                )?;
+            }
+            continue;
+        }
+        let path = frame_path(&config.output_directory, frame);
+        if let Some(volume) = &volume {
+            volume.save_frame_png(context, &target, frame, project.fps, clear, path)?;
+        } else if let Some(renderer) = &mut renderer {
+            renderer.save_timeline_frame_png(
                 context,
                 &target,
                 frame,
                 timing,
                 render_config,
                 clear,
+                path,
             )?;
-            continue;
         }
-        let path = frame_path(&config.output_directory, frame);
-        renderer.save_timeline_frame_png(
-            context,
-            &target,
-            frame,
-            timing,
-            render_config,
-            clear,
-            path,
-        )?;
     }
     Ok(SequenceReport {
         frames_rendered: config.end_frame - config.start_frame,

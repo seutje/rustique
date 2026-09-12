@@ -8,6 +8,7 @@ mod particles;
 mod post_process;
 mod spatial_grid;
 mod surface;
+mod volumetrics;
 
 pub use camera::PerspectiveCamera;
 pub use fluid::{FluidConfig, FluidError, FluidFrameStats, FluidRenderer};
@@ -19,3 +20,4 @@ pub use particles::{
 pub use post_process::{PostProcessConfig, PostProcessQuality};
 pub use spatial_grid::{SpatialGrid, SpatialGridConfig, SpatialGridError, SpatialGridStats};
 pub use surface::SurfacePresenter;
+pub use volumetrics::{VolumetricConfig, VolumetricQuality, VolumetricRenderer};

@@ -8,6 +8,7 @@
   "forces": [],
   "camera": { "position": [0.0, 0.0, 3.0], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 45.0 },
   "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 2.0, "background": [0.0, 0.0, 0.0, 1.0] },
+  "render_mode": "particles",
   "modulation_mappings": [],
   "visual_preset": { "source": "../presets/nebula.json", "overrides": { "macros": { "turbulence": 1.4, "particle_size": 5.0 } } }
 }

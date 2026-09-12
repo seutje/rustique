@@ -13,12 +13,12 @@ use std::{
 
 use audio_engine::AudioAnalysis;
 use project_format::{
-    EnvelopeSmoother, ModulatedParameters, ModulationTarget, ProjectV1, evaluate_automation,
-    evaluate_mappings,
+    EnvelopeSmoother, ModulatedParameters, ModulationTarget, ProjectV1, RenderModeV1,
+    evaluate_automation, evaluate_mappings,
 };
 use render_core::{
     BenchmarkConfig, GpuContext, OffscreenRenderTarget, ParticleRenderer, PostProcessConfig,
-    RgbaColor,
+    RgbaColor, VolumetricConfig, VolumetricQuality, VolumetricRenderer,
 };
 use simulation::SimulationTiming;
 
@@ -119,14 +119,42 @@ pub fn export_video(
     let substeps =
         NonZeroU32::new(project.particle_system.substeps).ok_or(ExportError::InvalidTiming)?;
     let timing = SimulationTiming::new(fps, fps, substeps);
+    let mut post_process = config.post_process;
+    if project.render_mode == RenderModeV1::Volumetric {
+        post_process.trails = true;
+        post_process.trail_decay = if config.post_process.trails {
+            0.82
+        } else {
+            0.65
+        };
+    }
     let target = OffscreenRenderTarget::new_with_post_process(
         context,
         config.width,
         config.height,
-        config.post_process,
+        post_process,
     )?;
-    let mut renderer = ParticleRenderer::new(context, project.particle_system.count, project.seed)?;
-    renderer.set_forces(context, &project.forces)?;
+    let mut renderer = (project.render_mode == RenderModeV1::Particles)
+        .then(|| ParticleRenderer::new(context, project.particle_system.count, project.seed))
+        .transpose()?;
+    if let Some(renderer) = &mut renderer {
+        renderer.set_forces(context, &project.forces)?;
+    }
+    let volume_quality = if config.post_process.trails {
+        VolumetricQuality::Final
+    } else if config.post_process.bloom {
+        VolumetricQuality::Preview
+    } else {
+        VolumetricQuality::Draft
+    };
+    let volume = (project.render_mode == RenderModeV1::Volumetric).then(|| {
+        VolumetricRenderer::new(
+            context,
+            project.particle_system.count,
+            project.seed,
+            VolumetricConfig::for_quality(volume_quality),
+        )
+    });
 
     let mut command = ffmpeg_command(project, config, &partial_path);
     let mut child = command.spawn().map_err(|source| ExportError::SpawnFfmpeg {
@@ -168,35 +196,47 @@ pub fn export_video(
             ..ModulatedParameters::default()
         };
         parameters.apply(&active);
-        let pixels = match renderer.render_timeline_frame(
-            context,
-            &target,
-            frame,
-            timing,
-            BenchmarkConfig {
-                particle_size_pixels: parameters.particle_size,
-                position_scale: 1.0,
-                force_scale: parameters.gravity_strength,
-                brightness: parameters.brightness,
-                active_particle_count: has_burst
-                    .then_some(parameters.burst_emission.max(0.0) as u32),
-                view_projection: Some(camera_matrix(
-                    project,
-                    &parameters,
-                    time as f32,
-                    config.width,
-                    config.height,
-                )),
-            },
-            RgbaColor::new(background[0], background[1], background[2], background[3]),
-        ) {
+        let clear = RgbaColor::new(background[0], background[1], background[2], background[3]);
+        let result = if let Some(volume) = &volume {
+            volume
+                .render_frame(context, &target, frame, project.fps, clear)
+                .map_err(ExportError::from)
+        } else if let Some(renderer) = &mut renderer {
+            renderer
+                .render_timeline_frame(
+                    context,
+                    &target,
+                    frame,
+                    timing,
+                    BenchmarkConfig {
+                        particle_size_pixels: parameters.particle_size,
+                        position_scale: 1.0,
+                        force_scale: parameters.gravity_strength,
+                        brightness: parameters.brightness,
+                        active_particle_count: has_burst
+                            .then_some(parameters.burst_emission.max(0.0) as u32),
+                        view_projection: Some(camera_matrix(
+                            project,
+                            &parameters,
+                            time as f32,
+                            config.width,
+                            config.height,
+                        )),
+                    },
+                    clear,
+                )
+                .map_err(ExportError::from)
+        } else {
+            Err(ExportError::MissingRenderer)
+        };
+        let pixels = match result {
             Ok(pixels) => pixels,
             Err(error) => {
                 drop(stdin);
                 let _ = child.kill();
                 let _ = child.wait();
                 let _ = fs::remove_file(&partial_path);
-                return Err(error.into());
+                return Err(error);
             }
         };
         if frame < config.start_frame {

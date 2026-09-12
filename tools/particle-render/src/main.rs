@@ -6,13 +6,14 @@ use exporter::{
     render_png_sequence,
 };
 use project_format::{
-    AssetKind, EnvelopeSmoother, PackageAsset, PackageCreateOptions, ProjectV1, RenderPackage,
-    evaluate_mappings,
+    AssetKind, EnvelopeSmoother, PackageAsset, PackageCreateOptions, ProjectV1, RenderModeV1,
+    RenderPackage, evaluate_mappings,
 };
 use render_core::{
     BackendPreference, BenchmarkConfig, FluidConfig, FluidRenderer, GpuConfig, GpuContext,
     OffscreenRenderTarget, ParticleRenderer, PerspectiveCamera, PostProcessConfig,
-    PostProcessQuality, RgbaColor, SpatialGrid, SpatialGridConfig,
+    PostProcessQuality, RgbaColor, SpatialGrid, SpatialGridConfig, VolumetricConfig,
+    VolumetricQuality, VolumetricRenderer,
 };
 use simulation::{Force, SimulationTiming};
 
@@ -1263,6 +1264,39 @@ fn render_project_still(
         PostProcessConfig::for_quality(options.post_quality),
     )
     .map_err(|error| format!("failed to create offscreen target: {error}"))?;
+    if project.render_mode == RenderModeV1::Volumetric {
+        let quality = match options.post_quality {
+            PostProcessQuality::Draft => VolumetricQuality::Draft,
+            PostProcessQuality::Preview => VolumetricQuality::Preview,
+            PostProcessQuality::Final => VolumetricQuality::Final,
+        };
+        let renderer = VolumetricRenderer::new(
+            context,
+            project.particle_system.count,
+            project.seed,
+            VolumetricConfig::for_quality(quality),
+        );
+        let background = project.render_defaults.background;
+        renderer
+            .save_frame_png(
+                context,
+                &target,
+                options.frame,
+                project.fps,
+                RgbaColor::new(background[0], background[1], background[2], background[3]),
+                &options.output,
+            )
+            .map_err(|error| format!("failed to render volumetric project still: {error}"))?;
+        println!(
+            "Rendered volumetric project {} frame {} at {}x{} to {}",
+            project_path.display(),
+            options.frame,
+            width,
+            height,
+            options.output.display()
+        );
+        return Ok(());
+    }
     let mut renderer = ParticleRenderer::new(context, project.particle_system.count, project.seed)
         .map_err(|error| format!("failed to create particle renderer: {error}"))?;
     renderer

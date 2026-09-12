@@ -960,17 +960,18 @@ Prepare for physically richer systems.
 
 ## Tasks
 
-- [ ] Implement GPU spatial hash or uniform grid
-- [ ] Add neighbor lookup
-- [ ] Benchmark neighbor counts
-- [ ] Add debug visualization
-- [ ] Add memory-bound stress tests
-- [ ] Document complexity and limits
+- [x] Implement GPU spatial hash or uniform grid
+- [x] Add neighbor lookup
+- [x] Benchmark neighbor counts
+- [x] Add debug visualization
+- [x] Add memory-bound stress tests
+- [x] Document complexity and limits
+  - Added a headless GPU uniform grid with bounded cell storage, 27-cell radius queries, occupancy/neighbor/overflow metrics, repeatable stress iterations, and a projected occupancy PNG. See `docs/SPATIAL_GRID.md`.
 
 ## Acceptance Criteria
 
-- [ ] Neighbor queries scale substantially better than O(N^2)
-- [ ] Structure can support future fluid / boid systems
+- [x] Neighbor queries scale substantially better than O(N^2)
+- [x] Structure can support future fluid / boid systems
 
 ---
 

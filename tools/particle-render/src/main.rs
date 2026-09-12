@@ -12,6 +12,7 @@ use project_format::{
 use render_core::{
     BackendPreference, BenchmarkConfig, GpuConfig, GpuContext, OffscreenRenderTarget,
     ParticleRenderer, PerspectiveCamera, PostProcessConfig, PostProcessQuality, RgbaColor,
+    SpatialGrid, SpatialGridConfig,
 };
 use simulation::{Force, SimulationTiming};
 
@@ -116,6 +117,7 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
             Ok(())
         }
         Some(Command::Benchmark(benchmark)) => run_benchmark(&context, &benchmark),
+        Some(Command::SpatialBenchmark(options)) => run_spatial_benchmark(&context, &options),
         Some(Command::AudioInfo(_)) => unreachable!("audio command returned before GPU setup"),
         Some(Command::ModulationInfo(_)) => {
             unreachable!("modulation command returned before GPU setup")
@@ -142,6 +144,7 @@ enum Command {
     Still(StillOptions),
     Particles(ParticleOptions),
     Benchmark(BenchmarkOptions),
+    SpatialBenchmark(SpatialBenchmarkOptions),
     AudioInfo(AudioInfoOptions),
     ModulationInfo(ModulationInfoOptions),
     Sequence(SequenceOptions),
@@ -230,6 +233,16 @@ struct BenchmarkOptions {
 }
 
 #[derive(Debug, PartialEq)]
+struct SpatialBenchmarkOptions {
+    count: u32,
+    cells_per_axis: u32,
+    cell_capacity: u32,
+    max_neighbors: u32,
+    iterations: u32,
+    debug_output: Option<PathBuf>,
+}
+
+#[derive(Debug, PartialEq)]
 struct AudioInfoOptions {
     input: PathBuf,
     time_seconds: f64,
@@ -295,6 +308,11 @@ impl CliOptions {
                 "benchmark" => {
                     let benchmark = BenchmarkOptions::parse(&mut args, &mut options.backend)?;
                     set_command(&mut options.command, Command::Benchmark(benchmark))?;
+                }
+                "spatial-benchmark" => {
+                    let benchmark =
+                        SpatialBenchmarkOptions::parse(&mut args, &mut options.backend)?;
+                    set_command(&mut options.command, Command::SpatialBenchmark(benchmark))?;
                 }
                 "audio-info" => {
                     let audio = AudioInfoOptions::parse(&mut args)?;
@@ -475,6 +493,56 @@ impl BenchmarkOptions {
                 "--readback" => result.readback = true,
                 "--backend" => *backend = parse_backend(&required_value(args, "--backend")?)?,
                 _ => return Err(format!("unknown benchmark argument: {argument}")),
+            }
+        }
+        Ok(result)
+    }
+}
+
+impl SpatialBenchmarkOptions {
+    fn parse(
+        args: &mut impl Iterator<Item = String>,
+        backend: &mut BackendPreference,
+    ) -> Result<Self, String> {
+        let mut result = Self {
+            count: 100_000,
+            cells_per_axis: 32,
+            cell_capacity: 64,
+            max_neighbors: 128,
+            iterations: 3,
+            debug_output: None,
+        };
+        while let Some(argument) = args.next() {
+            match argument.as_str() {
+                "--count" => {
+                    result.count = parse_dimension("count", &required_value(args, "--count")?)?;
+                }
+                "--cells" => {
+                    result.cells_per_axis =
+                        parse_dimension("cells", &required_value(args, "--cells")?)?;
+                }
+                "--cell-capacity" => {
+                    result.cell_capacity = parse_dimension(
+                        "cell-capacity",
+                        &required_value(args, "--cell-capacity")?,
+                    )?;
+                }
+                "--max-neighbors" => {
+                    result.max_neighbors = parse_dimension(
+                        "max-neighbors",
+                        &required_value(args, "--max-neighbors")?,
+                    )?;
+                }
+                "--iterations" => {
+                    result.iterations =
+                        parse_dimension("iterations", &required_value(args, "--iterations")?)?;
+                }
+                "--debug-output" => {
+                    result.debug_output =
+                        Some(PathBuf::from(required_value(args, "--debug-output")?));
+                }
+                "--backend" => *backend = parse_backend(&required_value(args, "--backend")?)?,
+                _ => return Err(format!("unknown spatial-benchmark argument: {argument}")),
             }
         }
         Ok(result)
@@ -989,6 +1057,54 @@ fn run_benchmark(context: &GpuContext, options: &BenchmarkOptions) -> Result<(),
 }
 
 #[allow(clippy::cast_precision_loss)]
+fn run_spatial_benchmark(
+    context: &GpuContext,
+    options: &SpatialBenchmarkOptions,
+) -> Result<(), String> {
+    let grid = SpatialGrid::new(
+        context,
+        options.count,
+        1,
+        SpatialGridConfig {
+            cells_per_axis: options.cells_per_axis,
+            cell_capacity: options.cell_capacity,
+            max_neighbors: options.max_neighbors,
+            ..SpatialGridConfig::default()
+        },
+    )
+    .map_err(|error| error.to_string())?;
+    println!(
+        "iteration,particles,cells,occupied,max_occupancy,avg_neighbors,max_neighbors,overflow,memory_mib,elapsed_ms"
+    );
+    let mut last_cells = Vec::new();
+    for iteration in 1..=options.iterations {
+        let (stats, cells) = grid.run(context).map_err(|error| error.to_string())?;
+        println!(
+            "{iteration},{},{},{},{},{:.3},{},{},{:.2},{:.3}",
+            stats.particle_count,
+            stats.cell_count,
+            stats.occupied_cells,
+            stats.maximum_cell_occupancy,
+            stats.average_neighbors,
+            stats.maximum_neighbors,
+            stats.overflowed_particles,
+            stats.gpu_memory_bytes as f64 / 1_048_576.0,
+            stats.elapsed_ms
+        );
+        last_cells = cells;
+    }
+    if let Some(path) = &options.debug_output {
+        grid.save_debug_png(&last_cells, path)
+            .map_err(|error| error.to_string())?;
+        println!(
+            "Saved projected cell-occupancy visualization to {}",
+            path.display()
+        );
+    }
+    Ok(())
+}
+
+#[allow(clippy::cast_precision_loss)]
 fn render_project_still(
     context: &GpuContext,
     options: &StillOptions,
@@ -1201,6 +1317,9 @@ fn print_help() {
          particle-render benchmark [--count N] [--frames 10] [--width 1920] \
          [--height 1080] [--particle-size 2] [--overdraw] [--readback] \
          [--backend auto|dx12|vulkan]\n\
+         particle-render spatial-benchmark [--count 100000] [--cells 32] \
+         [--cell-capacity 64] [--max-neighbors 128] [--iterations 3] \
+         [--debug-output grid.png] [--backend auto|dx12|vulkan]\n\
          particle-render audio-info <audio-path> [--time seconds]\n\
          particle-render modulation-info <project.json> <audio-path> [--time seconds]\n\
          particle-render package-create <project.json> --audio <path> --output <name.rustiqueproject> \
@@ -1456,6 +1575,33 @@ mod tests {
                 frames: 3,
                 particle_size: 8.0,
                 overdraw: true,
+                ..
+            }))
+        ));
+    }
+
+    #[test]
+    fn parses_spatial_benchmark_options() {
+        let options = CliOptions::parse(
+            [
+                "spatial-benchmark",
+                "--count",
+                "500000",
+                "--cells",
+                "48",
+                "--debug-output",
+                "grid.png",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .unwrap();
+        assert!(matches!(
+            options.command,
+            Some(Command::SpatialBenchmark(SpatialBenchmarkOptions {
+                count: 500_000,
+                cells_per_axis: 48,
+                debug_output: Some(_),
                 ..
             }))
         ));

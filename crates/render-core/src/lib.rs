@@ -5,6 +5,7 @@ mod gpu;
 mod offscreen;
 mod particles;
 mod post_process;
+mod spatial_grid;
 mod surface;
 
 pub use camera::PerspectiveCamera;
@@ -14,4 +15,5 @@ pub use particles::{
     BenchmarkConfig, FrameTiming, FrameUniforms, ParticleRenderError, ParticleRenderer,
 };
 pub use post_process::{PostProcessConfig, PostProcessQuality};
+pub use spatial_grid::{SpatialGrid, SpatialGridConfig, SpatialGridError, SpatialGridStats};
 pub use surface::SurfacePresenter;

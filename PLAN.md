@@ -848,22 +848,22 @@ Verify the renderer independently of Windows desktop tooling.
 
 ## Tasks
 
-- [ ] Create WSL clone
-- [ ] Install Linux Rust toolchain
-- [ ] Install required Vulkan userspace dependencies
-- [ ] Verify NVIDIA adapter is visible
-- [ ] Compile workspace under Linux
-- [ ] Run `particle-render --gpu-info`
-- [ ] Render offscreen still
-- [ ] Render short audio-reactive clip
-- [ ] Document Linux dependencies
-- [ ] Fix any accidental Windows coupling
+- [x] Create WSL clone
+- [x] Install Linux Rust toolchain
+- [x] Install required Vulkan userspace dependencies
+- [x] Verify NVIDIA adapter is visible
+- [x] Compile workspace under Linux
+- [x] Run `particle-render --gpu-info`
+- [x] Render offscreen still
+- [x] Render short audio-reactive clip
+- [x] Document Linux dependencies
+- [x] Fix any accidental Windows coupling
 
 ## Acceptance Criteria
 
-- [ ] Headless renderer works in WSL
-- [ ] Core crates remain platform-neutral
-- [ ] Output is visually consistent with Windows within acceptable GPU differences
+- [x] Headless renderer works in WSL
+- [x] Core crates remain platform-neutral
+- [x] Output is visually consistent with Windows within acceptable GPU differences
 
 ---
 

@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "apps/desktop/src-tauri",
     "crates/audio-engine",
     "crates/exporter",
     "crates/project-format",
@@ -21,4 +22,3 @@ unsafe_code = "forbid"
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
-

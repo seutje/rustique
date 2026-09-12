@@ -611,27 +611,31 @@ Create the Tauri 2 + React + TypeScript editor.
 
 ## Tasks
 
-- [ ] Create Tauri 2 application
-- [ ] Use Vite
-- [ ] Use React
-- [ ] Use TypeScript
-- [ ] Add Zustand
-- [ ] Add application shell
-- [ ] Add viewport area
-- [ ] Add inspector area
-- [ ] Add preset browser area
-- [ ] Add audio/timeline area
-- [ ] Add render settings area
-- [ ] Keep UI state separate from engine state
-- [ ] Create minimal Rust command bridge
-- [ ] Do not duplicate renderer logic inside Tauri
+- [x] Create Tauri 2 application
+- [x] Use Vite
+- [x] Use React
+- [x] Use TypeScript
+- [x] Add Zustand
+- [x] Add application shell
+- [x] Add viewport area
+- [x] Add inspector area
+- [x] Add preset browser area
+- [x] Add audio/timeline area
+- [x] Add render settings area
+- [x] Keep UI state separate from engine state
+- [x] Create minimal Rust command bridge
+- [x] Do not duplicate renderer logic inside Tauri
 
 ## Acceptance Criteria
 
-- [ ] Desktop app launches
-- [ ] UI can query GPU info from native engine
-- [ ] UI can load a project
-- [ ] Render core remains usable without Tauri
+- [x] Desktop app launches
+  - `npm run tauri -- dev` launched the Windows application successfully.
+- [x] UI can query GPU info from native engine
+  - The `gpu_info` command delegates adapter discovery to `render-core`.
+- [x] UI can load a project
+  - The `load_project` command validates through `project-format` and returns an editor summary.
+- [x] Render core remains usable without Tauri
+  - Tauri depends on `render-core`; no core crate depends on the desktop app.
 
 ---
 

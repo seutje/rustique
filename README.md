@@ -105,4 +105,11 @@ in project data. See [`docs/CAMERA.md`](docs/CAMERA.md).
 Versioned visual presets and project-local macro overrides are documented in
 [`docs/PRESETS.md`](docs/PRESETS.md).
 
-The future desktop editor belongs under `apps/desktop`; the render core and CLI do not depend on Tauri or a window.
+The Tauri desktop editor scaffold lives under `apps/desktop`; the render core
+and CLI remain independent from Tauri and a window. Start it with:
+
+```powershell
+cd apps/desktop
+npm install
+npm run tauri -- dev
+```

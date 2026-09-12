@@ -94,4 +94,9 @@ The supported codec names are `h264`, `hevc`, `prores422hq`, and
 `prores4444`. Use `--start-frame` and `--frames` for a timeline slice. The
 exporter writes an adjacent partial file and removes it on failure or Ctrl+C.
 
+Select the shared HDR/post-processing pipeline with
+`--post-quality draft|preview|final`. See
+[`docs/POST_PROCESSING.md`](docs/POST_PROCESSING.md) for effects and GPU memory
+usage.
+
 The future desktop editor belongs under `apps/desktop`; the render core and CLI do not depend on Tauri or a window.

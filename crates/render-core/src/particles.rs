@@ -5,7 +5,9 @@ use simulation::{Force, GpuForce, Particle, SimulationTiming, initialize_particl
 use thiserror::Error;
 use wgpu::util::DeviceExt;
 
-use crate::{GpuContext, OffscreenError, OffscreenRenderTarget, RgbaColor};
+use crate::{
+    GpuContext, OffscreenError, OffscreenRenderTarget, RgbaColor, post_process::HDR_FORMAT,
+};
 
 const PARTICLE_SHADER: &str = include_str!("../../../shaders/particles/particles.wgsl");
 const MAX_FORCE_COUNT: usize = 32;
@@ -233,7 +235,7 @@ impl ParticleRenderer {
                         entry_point: Some("fragment"),
                         compilation_options: wgpu::PipelineCompilationOptions::default(),
                         targets: &[Some(wgpu::ColorTargetState {
-                            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                            format: HDR_FORMAT,
                             blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                             write_mask: wgpu::ColorWrites::ALL,
                         })],
@@ -334,6 +336,7 @@ impl ParticleRenderer {
         render_config: BenchmarkConfig,
         clear: RgbaColor,
     ) -> Result<Vec<u8>, ParticleRenderError> {
+        let reset_history = frame_index < self.timeline_frame || frame_index == 0;
         if frame_index < self.timeline_frame {
             self.reset(context);
         }
@@ -416,7 +419,7 @@ impl ParticleRenderer {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("particle-timeline-render-pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(clear.into()),
@@ -431,7 +434,7 @@ impl ParticleRenderer {
             pass.set_bind_group(0, &self.bind_groups[self.source_index], &[]);
             pass.draw(0..self.particle_count.saturating_mul(6), 0..1);
         }
-        target.encode_readback(&mut encoder);
+        target.encode_readback(&mut encoder, reset_history);
         context.queue.submit([encoder.finish()]);
         Ok(target.read_pixels(context)?)
     }
@@ -521,7 +524,7 @@ impl ParticleRenderer {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("particle-benchmark-render"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -619,7 +622,7 @@ impl ParticleRenderer {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("particle-render"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(clear.into()),
@@ -634,7 +637,7 @@ impl ParticleRenderer {
             pass.set_bind_group(0, &self.bind_groups[self.source_index ^ 1], &[]);
             pass.draw(0..self.particle_count.saturating_mul(6), 0..1);
         }
-        target.encode_readback(&mut encoder);
+        target.encode_readback(&mut encoder, frame_index == 0);
         context.queue.submit([encoder.finish()]);
         self.source_index ^= 1;
         Ok(target.read_pixels(context)?)

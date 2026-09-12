@@ -29,6 +29,7 @@ pub struct PngSequenceConfig {
     pub end_frame: u32,
     pub width: u32,
     pub height: u32,
+    pub post_process: render_core::PostProcessConfig,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -118,7 +119,12 @@ pub fn render_png_sequence(
     let substeps =
         NonZeroU32::new(project.particle_system.substeps).ok_or(ExportError::InvalidTiming)?;
     let timing = SimulationTiming::new(fps, fps, substeps);
-    let target = OffscreenRenderTarget::new(context, config.width, config.height)?;
+    let target = OffscreenRenderTarget::new_with_post_process(
+        context,
+        config.width,
+        config.height,
+        config.post_process,
+    )?;
     let mut renderer = ParticleRenderer::new(context, project.particle_system.count, project.seed)?;
     renderer.set_forces(context, &project.forces)?;
     let mut smoothers = vec![EnvelopeSmoother::default(); project.modulation_mappings.len()];

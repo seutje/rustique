@@ -8,7 +8,7 @@ use exporter::{
 use project_format::{EnvelopeSmoother, ProjectV1, evaluate_mappings};
 use render_core::{
     BackendPreference, BenchmarkConfig, GpuConfig, GpuContext, OffscreenRenderTarget,
-    ParticleRenderer, RgbaColor,
+    ParticleRenderer, PostProcessConfig, PostProcessQuality, RgbaColor,
 };
 use simulation::{Force, SimulationTiming};
 
@@ -53,8 +53,13 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
             }
             let width = still.width.unwrap_or(1920);
             let height = still.height.unwrap_or(1080);
-            let target = OffscreenRenderTarget::new(&context, width, height)
-                .map_err(|error| format!("failed to create offscreen target: {error}"))?;
+            let target = OffscreenRenderTarget::new_with_post_process(
+                &context,
+                width,
+                height,
+                PostProcessConfig::for_quality(still.post_quality),
+            )
+            .map_err(|error| format!("failed to create offscreen target: {error}"))?;
             target
                 .save_clear_png(&context, still.color, &still.output)
                 .map_err(|error| format!("failed to render still: {error}"))?;
@@ -139,6 +144,7 @@ struct StillOptions {
     height: Option<u32>,
     color: RgbaColor,
     frame: u32,
+    post_quality: PostProcessQuality,
 }
 
 #[derive(Debug, PartialEq)]
@@ -231,6 +237,7 @@ struct SequenceOptions {
     frame_count: Option<u32>,
     width: Option<u32>,
     height: Option<u32>,
+    post_quality: PostProcessQuality,
 }
 
 #[derive(Debug, PartialEq)]
@@ -244,6 +251,7 @@ struct VideoOptions {
     height: Option<u32>,
     codec: VideoCodec,
     ffmpeg_path: PathBuf,
+    post_quality: PostProcessQuality,
 }
 
 impl CliOptions {
@@ -305,6 +313,7 @@ impl StillOptions {
         let mut height = None;
         let mut color = RgbaColor::new(0.02, 0.04, 0.12, 1.0);
         let mut frame = 0;
+        let mut post_quality = PostProcessQuality::Preview;
         while let Some(argument) = args.next() {
             match argument.as_str() {
                 "--output" => {
@@ -321,6 +330,9 @@ impl StillOptions {
                 }
                 "--color" => color = parse_color(&required_value(args, "--color")?)?,
                 "--frame" => frame = parse_number("frame", &required_value(args, "--frame")?)?,
+                "--post-quality" => {
+                    post_quality = parse_post_quality(&required_value(args, "--post-quality")?)?;
+                }
                 "--backend" => *backend = parse_backend(&required_value(args, "--backend")?)?,
                 _ if !argument.starts_with('-') && project.is_none() => {
                     project = Some(PathBuf::from(argument));
@@ -335,6 +347,7 @@ impl StillOptions {
             height,
             color,
             frame,
+            post_quality,
         })
     }
 }
@@ -489,6 +502,7 @@ impl SequenceOptions {
         let mut frame_count = None;
         let mut width = None;
         let mut height = None;
+        let mut post_quality = PostProcessQuality::Preview;
         while let Some(argument) = args.next() {
             match argument.as_str() {
                 "--audio" => audio = Some(PathBuf::from(required_value(args, "--audio")?)),
@@ -515,6 +529,9 @@ impl SequenceOptions {
                     )?);
                 }
                 "--backend" => *backend = parse_backend(&required_value(args, "--backend")?)?,
+                "--post-quality" => {
+                    post_quality = parse_post_quality(&required_value(args, "--post-quality")?)?;
+                }
                 _ => return Err(format!("unknown sequence argument: {argument}")),
             }
         }
@@ -527,6 +544,7 @@ impl SequenceOptions {
             frame_count,
             width,
             height,
+            post_quality,
         })
     }
 }
@@ -545,6 +563,7 @@ impl VideoOptions {
         let mut height = None;
         let mut codec = VideoCodec::H264;
         let mut ffmpeg_path = PathBuf::from("ffmpeg");
+        let mut post_quality = PostProcessQuality::Preview;
         while let Some(argument) = args.next() {
             match argument.as_str() {
                 "--audio" => audio = Some(PathBuf::from(required_value(args, "--audio")?)),
@@ -571,6 +590,9 @@ impl VideoOptions {
                 "--codec" => codec = parse_video_codec(&required_value(args, "--codec")?)?,
                 "--ffmpeg" => ffmpeg_path = PathBuf::from(required_value(args, "--ffmpeg")?),
                 "--backend" => *backend = parse_backend(&required_value(args, "--backend")?)?,
+                "--post-quality" => {
+                    post_quality = parse_post_quality(&required_value(args, "--post-quality")?)?;
+                }
                 _ => return Err(format!("unknown video argument: {argument}")),
             }
         }
@@ -584,6 +606,7 @@ impl VideoOptions {
             height,
             codec,
             ffmpeg_path,
+            post_quality,
         })
     }
 }
@@ -676,6 +699,7 @@ fn run_sequence(context: &GpuContext, options: &SequenceOptions) -> Result<(), S
             end_frame,
             width: options.width.unwrap_or(project.render_defaults.width),
             height: options.height.unwrap_or(project.render_defaults.height),
+            post_process: PostProcessConfig::for_quality(options.post_quality),
         },
     )
     .map_err(|error| format!("sequence render failed: {error}"))?;
@@ -716,6 +740,7 @@ fn run_video(context: &GpuContext, options: &VideoOptions) -> Result<(), String>
             start_frame: options.start_frame,
             end_frame,
             codec: options.codec,
+            post_process: PostProcessConfig::for_quality(options.post_quality),
         },
         &cancellation,
         |progress| {
@@ -817,8 +842,13 @@ fn render_project_still(
         .map_err(|error| format!("failed to load project: {error}"))?;
     let width = options.width.unwrap_or(project.render_defaults.width);
     let height = options.height.unwrap_or(project.render_defaults.height);
-    let target = OffscreenRenderTarget::new(context, width, height)
-        .map_err(|error| format!("failed to create offscreen target: {error}"))?;
+    let target = OffscreenRenderTarget::new_with_post_process(
+        context,
+        width,
+        height,
+        PostProcessConfig::for_quality(options.post_quality),
+    )
+    .map_err(|error| format!("failed to create offscreen target: {error}"))?;
     let mut renderer = ParticleRenderer::new(context, project.particle_system.count, project.seed)
         .map_err(|error| format!("failed to create particle renderer: {error}"))?;
     renderer
@@ -885,6 +915,17 @@ fn parse_video_codec(value: &str) -> Result<VideoCodec, String> {
         "prores4444" => Ok(VideoCodec::ProRes4444),
         _ => Err(format!(
             "unsupported codec '{value}'; expected h264, hevc, prores422hq, or prores4444"
+        )),
+    }
+}
+
+fn parse_post_quality(value: &str) -> Result<PostProcessQuality, String> {
+    match value {
+        "draft" => Ok(PostProcessQuality::Draft),
+        "preview" => Ok(PostProcessQuality::Preview),
+        "final" => Ok(PostProcessQuality::Final),
+        _ => Err(format!(
+            "unsupported post quality '{value}'; expected draft, preview, or final"
         )),
     }
 }
@@ -956,7 +997,7 @@ fn print_help() {
     println!(
         "particle-render --gpu-info [--backend auto|dx12|vulkan]\n\
          particle-render still [project.json] --output <path> [--frame 0] \
-         [--width 1920] [--height 1080] [--color RRGGBB[AA]] \
+         [--width 1920] [--height 1080] [--color RRGGBB[AA]] [--post-quality preview] \
          [--backend auto|dx12|vulkan]\n\
          particle-render particles --output <path> [--count 10000] [--seed 1] \
          [--frame 0] [--fps 60] [--substeps 1] [--motion none|orbit|swirl] \
@@ -968,10 +1009,10 @@ fn print_help() {
          particle-render audio-info <audio-path> [--time seconds]\n\
          particle-render modulation-info <project.json> <audio-path> [--time seconds]\n\
          particle-render sequence <project.json> --audio <path> --output-dir <path> \
-         [--start-frame 0] [--frames N] [--width W] [--height H]\n\
+         [--start-frame 0] [--frames N] [--width W] [--height H] [--post-quality preview]\n\
          particle-render video <project.json> --audio <path> --output <path> \
          [--codec h264|hevc|prores422hq|prores4444] [--start-frame 0] \
-         [--frames N] [--width W] [--height H] [--ffmpeg <path>]"
+         [--frames N] [--width W] [--height H] [--ffmpeg <path>] [--post-quality preview]"
     );
 }
 
@@ -1025,6 +1066,7 @@ mod tests {
                 height: Some(7),
                 color: RgbaColor::new(1.0, 128.0 / 255.0, 0.0, 64.0 / 255.0),
                 frame: 0,
+                post_quality: PostProcessQuality::Preview,
             }))
         );
     }

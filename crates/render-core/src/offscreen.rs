@@ -7,7 +7,7 @@ use std::{
 
 use thiserror::Error;
 
-use crate::GpuContext;
+use crate::{GpuContext, PostProcessConfig, post_process::PostProcessor};
 
 const BYTES_PER_PIXEL: u32 = 4;
 
@@ -84,7 +84,7 @@ pub struct OffscreenRenderTarget {
     width: u32,
     height: u32,
     padded_bytes_per_row: u32,
-    texture: wgpu::Texture,
+    post_processor: PostProcessor,
     readback_buffer: wgpu::Buffer,
 }
 
@@ -95,6 +95,20 @@ impl OffscreenRenderTarget {
     ///
     /// Returns an error for zero, unsupported, or overflowing dimensions.
     pub fn new(context: &GpuContext, width: u32, height: u32) -> Result<Self, OffscreenError> {
+        Self::new_with_post_process(context, width, height, PostProcessConfig::default())
+    }
+
+    /// Creates a reusable target with an explicit shared post-processing setup.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for zero, unsupported, or overflowing dimensions.
+    pub fn new_with_post_process(
+        context: &GpuContext,
+        width: u32,
+        height: u32,
+        post_process: PostProcessConfig,
+    ) -> Result<Self, OffscreenError> {
         if width == 0 || height == 0 {
             return Err(OffscreenError::InvalidDimensions { width, height });
         }
@@ -120,20 +134,7 @@ impl OffscreenRenderTarget {
             .checked_mul(u64::from(height))
             .ok_or(OffscreenError::SizeOverflow)?;
 
-        let texture = context.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("rustique-offscreen-color"),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        });
+        let post_processor = PostProcessor::new(context, width, height, post_process);
         let readback_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("rustique-offscreen-readback"),
             size: buffer_size,
@@ -145,7 +146,7 @@ impl OffscreenRenderTarget {
             width,
             height,
             padded_bytes_per_row,
-            texture,
+            post_processor,
             readback_buffer,
         })
     }
@@ -155,14 +156,14 @@ impl OffscreenRenderTarget {
         (self.width, self.height)
     }
 
-    pub(crate) fn view(&self) -> wgpu::TextureView {
-        self.texture
-            .create_view(&wgpu::TextureViewDescriptor::default())
+    pub(crate) fn view(&self) -> &wgpu::TextureView {
+        self.post_processor.scene_view()
     }
 
-    pub(crate) fn encode_readback(&self, encoder: &mut wgpu::CommandEncoder) {
+    pub(crate) fn encode_readback(&self, encoder: &mut wgpu::CommandEncoder, reset_history: bool) {
+        self.post_processor.encode(encoder, reset_history);
         encoder.copy_texture_to_buffer(
-            self.texture.as_image_copy(),
+            self.post_processor.output().as_image_copy(),
             wgpu::TexelCopyBufferInfo {
                 buffer: &self.readback_buffer,
                 layout: wgpu::TexelCopyBufferLayout {
@@ -177,6 +178,12 @@ impl OffscreenRenderTarget {
                 depth_or_array_layers: 1,
             },
         );
+    }
+
+    /// Returns the bytes allocated by reusable color textures at this resolution.
+    #[must_use]
+    pub fn allocated_texture_bytes(&self) -> u64 {
+        PostProcessor::allocated_texture_bytes(self.width, self.height)
     }
 
     pub(crate) fn read_pixels(&self, context: &GpuContext) -> Result<Vec<u8>, OffscreenError> {
@@ -243,7 +250,7 @@ impl OffscreenRenderTarget {
             let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("rustique-offscreen-clear-pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(color.into()),
@@ -255,7 +262,7 @@ impl OffscreenRenderTarget {
                 occlusion_query_set: None,
             });
         }
-        self.encode_readback(&mut encoder);
+        self.encode_readback(&mut encoder, true);
         context.queue.submit([encoder.finish()]);
         self.read_pixels(context)
     }

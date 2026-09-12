@@ -481,23 +481,28 @@ Make simple particle scenes visually rich.
 
 ## Tasks
 
-- [ ] Add HDR scene target
-- [ ] Add tone mapping
-- [ ] Add bloom
-- [ ] Add exposure
-- [ ] Add gamma/output transform
-- [ ] Add trails / temporal accumulation
-- [ ] Add optional vignette
-- [ ] Add optional chromatic aberration
-- [ ] Add render-target pooling or explicit reuse
-- [ ] Add quality presets for post-processing
+- [x] Add HDR scene target
+- [x] Add tone mapping
+- [x] Add bloom
+- [x] Add exposure
+- [x] Add gamma/output transform
+- [x] Add trails / temporal accumulation
+- [x] Add optional vignette
+- [x] Add optional chromatic aberration
+- [x] Add render-target pooling or explicit reuse
+  - Scene, history, output, and readback resources are owned by and reused with the offscreen target.
+- [x] Add quality presets for post-processing
+  - Draft, Preview, and Final presets are available through the render core and CLI.
 
 ## Acceptance Criteria
 
-- [ ] Bloom works at 4K
-- [ ] HDR pipeline does not cause uncontrolled VRAM growth
-- [ ] Post effects can be toggled independently
-- [ ] Preview and offline renderer use the same post pipeline
+- [x] Bloom works at 4K
+  - A 3840x2160 project frame rendered successfully through the HDR/bloom pipeline.
+- [x] HDR pipeline does not cause uncontrolled VRAM growth
+  - Fixed target-owned textures use about 221.5 MiB at 4K and are reused every frame.
+- [x] Post effects can be toggled independently
+- [x] Preview and offline renderer use the same post pipeline
+  - Quality presets and offline exporters all construct the same render-core offscreen target.
 
 ---
 

@@ -16,7 +16,8 @@ use project_format::{
     EnvelopeSmoother, ModulatedParameters, ModulationTarget, ProjectV1, evaluate_mappings,
 };
 use render_core::{
-    BenchmarkConfig, GpuContext, OffscreenRenderTarget, ParticleRenderer, RgbaColor,
+    BenchmarkConfig, GpuContext, OffscreenRenderTarget, ParticleRenderer, PostProcessConfig,
+    RgbaColor,
 };
 use simulation::SimulationTiming;
 
@@ -41,6 +42,7 @@ pub struct VideoExportConfig {
     pub start_frame: u32,
     pub end_frame: u32,
     pub codec: VideoCodec,
+    pub post_process: PostProcessConfig,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -113,7 +115,12 @@ pub fn export_video(
     let substeps =
         NonZeroU32::new(project.particle_system.substeps).ok_or(ExportError::InvalidTiming)?;
     let timing = SimulationTiming::new(fps, fps, substeps);
-    let target = OffscreenRenderTarget::new(context, config.width, config.height)?;
+    let target = OffscreenRenderTarget::new_with_post_process(
+        context,
+        config.width,
+        config.height,
+        config.post_process,
+    )?;
     let mut renderer = ParticleRenderer::new(context, project.particle_system.count, project.seed)?;
     renderer.set_forces(context, &project.forces)?;
 

@@ -8,6 +8,7 @@ See [`DESIGN.md`](DESIGN.md) for architecture and product intent and [`PLAN.md`]
 
 - Rust 1.85 or newer, installed through [rustup](https://rustup.rs/)
 - The `rustfmt` and `clippy` components
+- FFmpeg and FFprobe on `PATH` for video export
 
 Install the required components with:
 
@@ -82,5 +83,15 @@ Render an audio-reactive PNG sequence without a window:
 ```bash
 cargo run -p particle-render --release -- sequence examples/star-orbit.rustique.json --audio track.wav --output-dir frames
 ```
+
+Stream an audio-reactive render directly to FFmpeg:
+
+```bash
+cargo run -p particle-render --release -- video examples/star-orbit.rustique.json --audio track.wav --output render.mp4 --codec h264
+```
+
+The supported codec names are `h264`, `hevc`, `prores422hq`, and
+`prores4444`. Use `--start-frame` and `--frames` for a timeline slice. The
+exporter writes an adjacent partial file and removes it on failure or Ctrl+C.
 
 The future desktop editor belongs under `apps/desktop`; the render core and CLI do not depend on Tauri or a window.

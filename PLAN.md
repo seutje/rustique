@@ -446,25 +446,30 @@ Stream frames directly into FFmpeg and create playable video files.
 
 ## Tasks
 
-- [ ] Add FFmpeg process wrapper
-- [ ] Stream raw frames through stdin
-- [ ] Avoid storing full sequence in memory
-- [ ] Mux original audio into final output
-- [ ] Add H.264 output
-- [ ] Add HEVC output
-- [ ] Add ProRes 422 HQ output
-- [ ] Add alpha-capable output path if practical
-- [ ] Add export progress reporting
-- [ ] Handle FFmpeg errors cleanly
-- [ ] Add cancellation support
-- [ ] Clean up failed temporary files
+- [x] Add FFmpeg process wrapper
+- [x] Stream raw frames through stdin
+- [x] Avoid storing full sequence in memory
+- [x] Mux original audio into final output
+- [x] Add H.264 output
+- [x] Add HEVC output
+- [x] Add ProRes 422 HQ output
+- [x] Add alpha-capable output path if practical
+  - ProRes 4444 uses an alpha-capable `yuva444p10le` output pixel format.
+- [x] Add export progress reporting
+- [x] Handle FFmpeg errors cleanly
+- [x] Add cancellation support
+- [x] Clean up failed temporary files
 
 ## Acceptance Criteria
 
-- [ ] CLI produces a valid video with synchronized audio
-- [ ] Memory use does not grow with video duration
-- [ ] 4K frame streaming works
-- [ ] Failed encodes produce useful errors
+- [x] CLI produces a valid video with synchronized audio
+  - FFprobe verified aligned zero start times and a one-second H.264 container with both streams.
+- [x] Memory use does not grow with video duration
+  - Each readback buffer is written and dropped before rendering the next frame.
+- [x] 4K frame streaming works
+  - A 3840x2160 H.264 frame was rendered and encoded successfully.
+- [x] Failed encodes produce useful errors
+  - Encoder exit details are reported and partial outputs are removed.
 
 ---
 

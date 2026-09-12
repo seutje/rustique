@@ -1,7 +1,10 @@
 use std::{env, num::NonZeroU32, path::PathBuf, process::ExitCode, time::Instant};
 
 use audio_engine::{AnalysisConfig, analyze_cached};
-use exporter::{PngSequenceConfig, render_png_sequence};
+use exporter::{
+    CancellationToken, PngSequenceConfig, VideoCodec, VideoExportConfig, export_video,
+    render_png_sequence,
+};
 use project_format::{EnvelopeSmoother, ProjectV1, evaluate_mappings};
 use render_core::{
     BackendPreference, BenchmarkConfig, GpuConfig, GpuContext, OffscreenRenderTarget,
@@ -104,6 +107,7 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
             unreachable!("modulation command returned before GPU setup")
         }
         Some(Command::Sequence(sequence)) => run_sequence(&context, &sequence),
+        Some(Command::Video(video)) => run_video(&context, &video),
         None => Err("no command specified; use still, --gpu-info, or --help".into()),
     }
 }
@@ -124,6 +128,7 @@ enum Command {
     AudioInfo(AudioInfoOptions),
     ModulationInfo(ModulationInfoOptions),
     Sequence(SequenceOptions),
+    Video(VideoOptions),
 }
 
 #[derive(Debug, PartialEq)]
@@ -228,6 +233,19 @@ struct SequenceOptions {
     height: Option<u32>,
 }
 
+#[derive(Debug, PartialEq)]
+struct VideoOptions {
+    project: PathBuf,
+    audio: PathBuf,
+    output: PathBuf,
+    start_frame: u32,
+    frame_count: Option<u32>,
+    width: Option<u32>,
+    height: Option<u32>,
+    codec: VideoCodec,
+    ffmpeg_path: PathBuf,
+}
+
 impl CliOptions {
     fn parse(mut args: impl Iterator<Item = String>) -> Result<Self, String> {
         let mut options = Self::default();
@@ -257,6 +275,10 @@ impl CliOptions {
                 "sequence" => {
                     let sequence = SequenceOptions::parse(&mut args, &mut options.backend)?;
                     set_command(&mut options.command, Command::Sequence(sequence))?;
+                }
+                "video" => {
+                    let video = VideoOptions::parse(&mut args, &mut options.backend)?;
+                    set_command(&mut options.command, Command::Video(video))?;
                 }
                 "-h" | "--help" => options.help = true,
                 "--backend" => {
@@ -509,6 +531,63 @@ impl SequenceOptions {
     }
 }
 
+impl VideoOptions {
+    fn parse(
+        args: &mut impl Iterator<Item = String>,
+        backend: &mut BackendPreference,
+    ) -> Result<Self, String> {
+        let project = PathBuf::from(required_value(args, "video project")?);
+        let mut audio = None;
+        let mut output = None;
+        let mut start_frame = 0;
+        let mut frame_count = None;
+        let mut width = None;
+        let mut height = None;
+        let mut codec = VideoCodec::H264;
+        let mut ffmpeg_path = PathBuf::from("ffmpeg");
+        while let Some(argument) = args.next() {
+            match argument.as_str() {
+                "--audio" => audio = Some(PathBuf::from(required_value(args, "--audio")?)),
+                "--output" => output = Some(PathBuf::from(required_value(args, "--output")?)),
+                "--start-frame" => {
+                    start_frame =
+                        parse_number("start-frame", &required_value(args, "--start-frame")?)?;
+                }
+                "--frames" => {
+                    frame_count = Some(parse_dimension(
+                        "frames",
+                        &required_value(args, "--frames")?,
+                    )?);
+                }
+                "--width" => {
+                    width = Some(parse_dimension("width", &required_value(args, "--width")?)?);
+                }
+                "--height" => {
+                    height = Some(parse_dimension(
+                        "height",
+                        &required_value(args, "--height")?,
+                    )?);
+                }
+                "--codec" => codec = parse_video_codec(&required_value(args, "--codec")?)?,
+                "--ffmpeg" => ffmpeg_path = PathBuf::from(required_value(args, "--ffmpeg")?),
+                "--backend" => *backend = parse_backend(&required_value(args, "--backend")?)?,
+                _ => return Err(format!("unknown video argument: {argument}")),
+            }
+        }
+        Ok(Self {
+            project,
+            audio: audio.ok_or_else(|| "video requires --audio <path>".to_owned())?,
+            output: output.ok_or_else(|| "video requires --output <path>".to_owned())?,
+            start_frame,
+            frame_count,
+            width,
+            height,
+            codec,
+            ffmpeg_path,
+        })
+    }
+}
+
 fn run_audio_info(options: &AudioInfoOptions) -> Result<(), String> {
     let analysis = analyze_cached(&options.input, AnalysisConfig::default())
         .map_err(|error| format!("audio analysis failed: {error}"))?;
@@ -604,6 +683,57 @@ fn run_sequence(context: &GpuContext, options: &SequenceOptions) -> Result<(), S
         "Rendered {} audio-reactive frames to {}",
         report.frames_rendered,
         options.output_directory.display()
+    );
+    Ok(())
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn run_video(context: &GpuContext, options: &VideoOptions) -> Result<(), String> {
+    let project = ProjectV1::load(&options.project).map_err(|error| error.to_string())?;
+    let analysis = analyze_cached(&options.audio, AnalysisConfig::default())
+        .map_err(|error| error.to_string())?;
+    let seconds = f64::from(project.duration_seconds).min(analysis.duration_seconds);
+    let default_end = (seconds * f64::from(project.fps))
+        .floor()
+        .min(f64::from(u32::MAX)) as u32;
+    let end_frame = options.frame_count.map_or(default_end, |count| {
+        options.start_frame.saturating_add(count)
+    });
+    let cancellation = CancellationToken::default();
+    let handler_token = cancellation.clone();
+    ctrlc::set_handler(move || handler_token.cancel())
+        .map_err(|error| format!("failed to install cancellation handler: {error}"))?;
+    let report = export_video(
+        context,
+        &project,
+        &analysis,
+        &VideoExportConfig {
+            ffmpeg_path: options.ffmpeg_path.clone(),
+            audio_path: options.audio.clone(),
+            output_path: options.output.clone(),
+            width: options.width.unwrap_or(project.render_defaults.width),
+            height: options.height.unwrap_or(project.render_defaults.height),
+            start_frame: options.start_frame,
+            end_frame,
+            codec: options.codec,
+        },
+        &cancellation,
+        |progress| {
+            if progress.completed_frames == progress.total_frames
+                || progress.completed_frames % project.fps == 0
+            {
+                eprintln!(
+                    "Exported {}/{} frames",
+                    progress.completed_frames, progress.total_frames
+                );
+            }
+        },
+    )
+    .map_err(|error| format!("video export failed: {error}"))?;
+    println!(
+        "Rendered {} frames with audio to {}",
+        report.frames_rendered,
+        options.output.display()
     );
     Ok(())
 }
@@ -747,6 +877,18 @@ fn parse_motion(value: &str) -> Result<MotionPreset, String> {
     }
 }
 
+fn parse_video_codec(value: &str) -> Result<VideoCodec, String> {
+    match value {
+        "h264" => Ok(VideoCodec::H264),
+        "hevc" | "h265" => Ok(VideoCodec::Hevc),
+        "prores422hq" => Ok(VideoCodec::ProRes422Hq),
+        "prores4444" => Ok(VideoCodec::ProRes4444),
+        _ => Err(format!(
+            "unsupported codec '{value}'; expected h264, hevc, prores422hq, or prores4444"
+        )),
+    }
+}
+
 fn set_command(command: &mut Option<Command>, value: Command) -> Result<(), String> {
     if command.is_some() {
         return Err("only one command may be specified".into());
@@ -826,7 +968,10 @@ fn print_help() {
          particle-render audio-info <audio-path> [--time seconds]\n\
          particle-render modulation-info <project.json> <audio-path> [--time seconds]\n\
          particle-render sequence <project.json> --audio <path> --output-dir <path> \
-         [--start-frame 0] [--frames N] [--width W] [--height H]"
+         [--start-frame 0] [--frames N] [--width W] [--height H]\n\
+         particle-render video <project.json> --audio <path> --output <path> \
+         [--codec h264|hevc|prores422hq|prores4444] [--start-frame 0] \
+         [--frames N] [--width W] [--height H] [--ffmpeg <path>]"
     );
 }
 
@@ -944,6 +1089,35 @@ mod tests {
             Some(Command::Still(StillOptions {
                 project: Some(_),
                 frame: 30,
+                ..
+            }))
+        ));
+    }
+
+    #[test]
+    fn parses_video_export_options() {
+        let options = CliOptions::parse(
+            [
+                "video",
+                "project.json",
+                "--audio",
+                "track.wav",
+                "--output",
+                "render.mov",
+                "--codec",
+                "prores4444",
+                "--frames",
+                "12",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .unwrap();
+        assert!(matches!(
+            options.command,
+            Some(Command::Video(VideoOptions {
+                codec: VideoCodec::ProRes4444,
+                frame_count: Some(12),
                 ..
             }))
         ));

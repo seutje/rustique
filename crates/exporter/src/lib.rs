@@ -1,5 +1,11 @@
 //! Headless frame export and encoding support.
 
+mod video;
+
+pub use video::{
+    CancellationToken, VideoCodec, VideoExportConfig, VideoProgress, VideoReport, export_video,
+};
+
 use audio_engine::AudioAnalysis;
 use project_format::{
     EnvelopeSmoother, ModulatedParameters, ModulationTarget, ProjectV1, evaluate_mappings,
@@ -46,6 +52,37 @@ pub enum ExportError {
     Offscreen(#[from] OffscreenError),
     #[error(transparent)]
     Render(#[from] ParticleRenderError),
+    #[error("output already exists: {0}")]
+    OutputExists(PathBuf),
+    #[error("failed to start FFmpeg executable {executable}: {source}")]
+    SpawnFfmpeg {
+        executable: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("FFmpeg did not provide a writable stdin pipe")]
+    MissingFfmpegStdin,
+    #[error("failed to stream frame {frame} to FFmpeg (exit code {status:?}): {source}; {stderr}")]
+    WriteFrame {
+        frame: u32,
+        status: Option<i32>,
+        stderr: String,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("failed while waiting for FFmpeg: {0}")]
+    WaitFfmpeg(#[source] std::io::Error),
+    #[error("FFmpeg failed with exit code {status:?}: {stderr}")]
+    FfmpegFailed { status: Option<i32>, stderr: String },
+    #[error("failed to finalize video from {from} to {to}: {source}")]
+    FinalizeOutput {
+        from: PathBuf,
+        to: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("video export was cancelled")]
+    Cancelled,
 }
 
 /// Renders a deterministic, audio-reactive PNG sequence with constant memory use.

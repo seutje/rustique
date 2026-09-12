@@ -92,6 +92,8 @@ Turn the GPU smoke test into a reusable render-core library that owns wgpu initi
 - [x] Add backend override support where practical:
   - [x] DX12
   - [x] Vulkan
+  - [x] Honor `WGPU_BACKEND` through wgpu's environment-aware backend selection
+    - GPU initialization logs the requested backend set and selected adapter backend.
 
 ## Acceptance Criteria
 

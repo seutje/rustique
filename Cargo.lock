@@ -2966,6 +2966,7 @@ name = "render-core"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "log",
  "png 0.17.16",
  "simulation",
  "thiserror 2.0.20",

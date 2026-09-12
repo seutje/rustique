@@ -95,7 +95,8 @@ impl GpuContext {
     /// compatible adapter, or [`GpuInitError::RequestDevice`] when the adapter
     /// cannot create a logical device.
     pub async fn new(config: GpuConfig) -> Result<Self, GpuInitError> {
-        let backends = config.backend.backends();
+        let backends = config.backend.backends().with_env();
+        log::info!("requested GPU backend set: {backends:?}");
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends,
             ..Default::default()
@@ -106,7 +107,13 @@ impl GpuContext {
             .into_iter()
             .max_by_key(adapter_score)
             .ok_or(GpuInitError::NoAdapter { backends })?;
-        let adapter_name = adapter.get_info().name;
+        let adapter_info = adapter.get_info();
+        log::info!(
+            "selected GPU adapter '{}' using backend {:?}",
+            adapter_info.name,
+            adapter_info.backend
+        );
+        let adapter_name = adapter_info.name;
         let optional_features =
             wgpu::Features::TIMESTAMP_QUERY | wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES;
         let required_features = adapter.features() & optional_features;

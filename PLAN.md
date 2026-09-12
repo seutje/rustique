@@ -875,20 +875,23 @@ Create a portable cloud-ready renderer image.
 
 ## Tasks
 
-- [ ] Add Dockerfile
-- [ ] Use multi-stage Rust build
-- [ ] Include runtime Vulkan dependencies
-- [ ] Include FFmpeg
-- [ ] Copy shaders and runtime assets
-- [ ] Add container entrypoint
-- [ ] Support render package input
-- [ ] Support mounted input/output directories
+- [x] Add Dockerfile
+- [x] Use multi-stage Rust build
+- [x] Include runtime Vulkan dependencies
+- [x] Include FFmpeg
+- [x] Copy shaders and runtime assets
+- [x] Add container entrypoint
+- [x] Support render package input
+- [x] Support mounted input/output directories
 - [ ] Test GPU passthrough locally if available
-- [ ] Keep image independent from RunPod APIs
+- [x] Keep image independent from RunPod APIs
+
+  Docker Vulkan initialization succeeds, but the local container currently sees
+  Mesa llvmpipe (CPU) instead of the NVIDIA GPU, so GPU validation is deferred.
 
 ## Acceptance Criteria
 
-- [ ] Container launches `particle-render`
+- [x] Container launches `particle-render`
 - [ ] Container renders a still using GPU
 - [ ] Container renders a video using GPU
 - [ ] Input/output are passed through mounted paths

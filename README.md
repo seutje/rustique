@@ -105,6 +105,9 @@ in project data. See [`docs/CAMERA.md`](docs/CAMERA.md).
 Versioned visual presets and project-local macro overrides are documented in
 [`docs/PRESETS.md`](docs/PRESETS.md).
 
+Build and run the portable Vulkan/FFmpeg renderer image using the mount and GPU
+passthrough examples in [`docs/DOCKER.md`](docs/DOCKER.md).
+
 The Tauri desktop editor scaffold lives under `apps/desktop`; the render core
 and CLI remain independent from Tauri and a window. Start it with:
 

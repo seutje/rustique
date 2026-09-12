@@ -885,7 +885,7 @@ Create a portable cloud-ready renderer image.
 - [x] Add container entrypoint
 - [x] Support render package input
 - [x] Support mounted input/output directories
-- [ ] Test GPU passthrough locally if available
+- [x] Test GPU passthrough locally if available
 - [x] Keep image independent from RunPod APIs
 
   Docker Vulkan initialization succeeds, but the local container currently sees
@@ -894,9 +894,9 @@ Create a portable cloud-ready renderer image.
 ## Acceptance Criteria
 
 - [x] Container launches `particle-render`
-- [ ] Container renders a still using GPU
-- [ ] Container renders a video using GPU
-- [ ] Input/output are passed through mounted paths
+- [x] Container renders a still using GPU
+- [x] Container renders a video using GPU
+- [x] Input/output are passed through mounted paths
 
 ---
 

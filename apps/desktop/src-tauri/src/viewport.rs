@@ -8,7 +8,9 @@ use std::{
 };
 
 use audio_engine::{AudioAnalysis, AudioFeatureFrame};
-use project_format::{EnvelopeSmoother, ModulatedParameters, ProjectV1, evaluate_mappings};
+use project_format::{
+    ActiveModulation, EnvelopeSmoother, ModulatedParameters, ProjectV1, evaluate_mappings,
+};
 use raw_window_handle::{
     RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
 };
@@ -29,7 +31,7 @@ use windows::{
     core::w,
 };
 
-#[derive(Clone, Copy, Debug, Default, Serialize)]
+#[derive(Clone, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PreviewStats {
     pub frame_index: u32,
@@ -39,6 +41,15 @@ pub struct PreviewStats {
     pub gpu_compute_ms: Option<f32>,
     pub gpu_render_ms: Option<f32>,
     pub playing: bool,
+    pub active_modulations: Vec<ActiveModulationSummary>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActiveModulationSummary {
+    pub target: String,
+    pub source_value: f32,
+    pub output_value: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -178,7 +189,7 @@ impl ViewportController {
     pub fn stats(&self) -> Result<PreviewStats, String> {
         self.stats
             .lock()
-            .map(|value| *value)
+            .map(|value| value.clone())
             .map_err(|_| "preview statistics lock is poisoned".into())
     }
 
@@ -392,6 +403,7 @@ async fn render_loop(
         let destination = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut active_modulations = Vec::new();
         let particle_count = if let Some(scene) = &mut scene {
             let fps = NonZeroU32::new(scene.project.fps).ok_or("project FPS is zero")?;
             let substeps = NonZeroU32::new(scene.project.particle_system.substeps)
@@ -407,6 +419,7 @@ async fn render_loop(
                 scene.project.apply_analysis_profile(features),
                 1.0 / scene.project.fps as f32,
             );
+            active_modulations = summarize_modulations(&active);
             let mut parameters = ModulatedParameters {
                 particle_size: scene.project.render_defaults.particle_size_pixels,
                 ..ModulatedParameters::default()
@@ -487,6 +500,7 @@ async fn render_loop(
             current.frame_time_ms = started.elapsed().as_secs_f32() * 1000.0;
             current.particle_count = particle_count;
             current.playing = playing;
+            current.active_modulations = active_modulations;
             if elapsed >= Duration::from_millis(500) {
                 current.frames_per_second = fps_frames as f32 / elapsed.as_secs_f32();
             }
@@ -497,6 +511,17 @@ async fn render_loop(
         }
     }
     Ok(())
+}
+
+fn summarize_modulations(active: &[ActiveModulation]) -> Vec<ActiveModulationSummary> {
+    active
+        .iter()
+        .map(|value| ActiveModulationSummary {
+            target: format!("{:?}", value.target).to_lowercase(),
+            source_value: value.source_value,
+            output_value: value.output_value,
+        })
+        .collect()
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]

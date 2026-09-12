@@ -62,6 +62,8 @@ pub enum ModulationCurve {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModulationMapping {
+    #[serde(default = "mapping_enabled")]
+    pub enabled: bool,
     pub source: ModulationSource,
     pub target: ModulationTarget,
     pub amount: f32,
@@ -72,6 +74,10 @@ pub struct ModulationMapping {
     pub curve: ModulationCurve,
     pub attack_seconds: f32,
     pub release_seconds: f32,
+}
+
+const fn mapping_enabled() -> bool {
+    true
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -164,7 +170,10 @@ pub fn evaluate_mappings(
     mappings
         .iter()
         .zip(smoothers)
-        .map(|(mapping, smoother)| {
+        .filter_map(|(mapping, smoother)| {
+            if !mapping.enabled {
+                return None;
+            }
             let raw = mapping.source.sample(features).clamp(0.0, 1.0);
             let smoothed = smoother.update(
                 raw,
@@ -180,12 +189,12 @@ pub fn evaluate_mappings(
                 ModulationCurve::Linear => polarized,
                 ModulationCurve::Exponential => polarized * polarized,
             };
-            ActiveModulation {
+            Some(ActiveModulation {
                 target: mapping.target,
                 source_value: smoothed,
                 output_value: (mapping.offset + curved * mapping.amount)
                     .clamp(mapping.minimum, mapping.maximum),
-            }
+            })
         })
         .collect()
 }
@@ -196,6 +205,7 @@ mod tests {
 
     fn mapping(target: ModulationTarget) -> ModulationMapping {
         ModulationMapping {
+            enabled: true,
             source: ModulationSource::Bass,
             target,
             amount: 2.0,
@@ -254,5 +264,18 @@ mod tests {
             1.0 / 60.0,
         );
         assert_eq!(first, second);
+    }
+
+    #[test]
+    fn disabled_mapping_is_not_evaluated() {
+        let mut value = mapping(ModulationTarget::Brightness);
+        value.enabled = false;
+        let active = evaluate_mappings(
+            &[value],
+            &mut [EnvelopeSmoother::default()],
+            AudioFeatureFrame::default(),
+            1.0 / 60.0,
+        );
+        assert!(active.is_empty());
     }
 }

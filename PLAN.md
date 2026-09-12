@@ -682,27 +682,30 @@ Make the engine usable without editing JSON.
 
 ## Tasks
 
-- [ ] Generate controls from parameter schema
-- [ ] Add sliders
-- [ ] Add numeric inputs
-- [ ] Add toggles
-- [ ] Add color controls
-- [ ] Add macro controls
-- [ ] Add modulation button per parameter
-- [ ] Add modulation editor
-- [ ] Show source
-- [ ] Show amount
-- [ ] Show attack/release
-- [ ] Show curve
-- [ ] Show live modulation value
-- [ ] Allow disabling a mapping
-- [ ] Persist changes to project state
+- [x] Generate controls from parameter schema
+- [x] Add sliders
+- [x] Add numeric inputs
+- [x] Add toggles
+- [x] Add color controls
+- [x] Add macro controls
+- [x] Add modulation button per parameter
+- [x] Add modulation editor
+- [x] Show source
+- [x] Show amount
+- [x] Show attack/release
+- [x] Show curve
+- [x] Show live modulation value
+- [x] Allow disabling a mapping
+- [x] Persist changes to project state
 
 ## Acceptance Criteria
 
-- [ ] A visual preset can be meaningfully edited without JSON
-- [ ] Audio mappings can be created and modified in UI
-- [ ] UI edits serialize back into project data
+- [x] A visual preset can be meaningfully edited without JSON
+  - Interactively validated in the Tauri editor.
+- [x] Audio mappings can be created and modified in UI
+  - Mapping CRUD, enablement, and live values were interactively validated with audio.
+- [x] UI edits serialize back into project data
+  - Native validation and save commands persist a resolved, self-contained project JSON.
 
 ---
 

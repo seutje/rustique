@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use audio_engine::{AnalysisConfig, analyze_cached};
-use project_format::ProjectV1;
+use project_format::{MacroParameterV1, ProjectV1, VisualPresetV1};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use render_core::{GpuConfig, GpuContext};
 use serde::Serialize;
@@ -25,12 +25,23 @@ struct GpuSummary {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ProjectSummary {
+struct EditorProject {
     path: PathBuf,
-    engine_version: String,
-    duration_seconds: f32,
-    fps: u32,
-    particle_count: u32,
+    project: ProjectV1,
+    parameters: Vec<ParameterSchema>,
+    macros: Vec<MacroParameterV1>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParameterSchema {
+    path: &'static str,
+    label: &'static str,
+    kind: &'static str,
+    minimum: Option<f64>,
+    maximum: Option<f64>,
+    step: Option<f64>,
+    modulation_target: Option<&'static str>,
 }
 
 #[tauri::command]
@@ -51,7 +62,7 @@ async fn gpu_info() -> Result<GpuSummary, String> {
 async fn load_project(
     path: PathBuf,
     viewport: State<'_, ViewportController>,
-) -> Result<ProjectSummary, String> {
+) -> Result<EditorProject, String> {
     let load_path = resolve_project_path(&path);
     let project = ProjectV1::load(&load_path).map_err(|error| error.to_string())?;
     let resolved_path = load_path.canonicalize().map_err(|error| {
@@ -60,15 +71,124 @@ async fn load_project(
             load_path.display()
         )
     })?;
-    let summary = ProjectSummary {
+    let macros = load_macro_schema(&load_path, &project)?;
+    viewport.set_project(project.clone())?;
+    Ok(EditorProject {
         path: resolved_path,
-        engine_version: project.engine_version.clone(),
-        duration_seconds: project.duration_seconds,
-        fps: project.fps,
-        particle_count: project.particle_system.count,
+        project,
+        parameters: parameter_schema(),
+        macros,
+    })
+}
+
+fn load_macro_schema(
+    path: &std::path::Path,
+    project: &ProjectV1,
+) -> Result<Vec<MacroParameterV1>, String> {
+    let Some(selection) = &project.visual_preset else {
+        return Ok(Vec::new());
     };
-    viewport.set_project(project)?;
-    Ok(summary)
+    let preset_path = path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .join(&selection.source);
+    VisualPresetV1::load(preset_path)
+        .map(|preset| preset.macros)
+        .map_err(|error| error.to_string())
+}
+
+fn parameter_schema() -> Vec<ParameterSchema> {
+    vec![
+        ParameterSchema {
+            path: "particle_system.count",
+            label: "Particle count",
+            kind: "number",
+            minimum: Some(1.0),
+            maximum: Some(20_000_000.0),
+            step: Some(1000.0),
+            modulation_target: None,
+        },
+        ParameterSchema {
+            path: "particle_system.substeps",
+            label: "Simulation substeps",
+            kind: "number",
+            minimum: Some(1.0),
+            maximum: Some(16.0),
+            step: Some(1.0),
+            modulation_target: None,
+        },
+        ParameterSchema {
+            path: "render_defaults.particle_size_pixels",
+            label: "Particle size",
+            kind: "number",
+            minimum: Some(0.1),
+            maximum: Some(64.0),
+            step: Some(0.1),
+            modulation_target: Some("particle_size"),
+        },
+        ParameterSchema {
+            path: "camera.vertical_fov_degrees",
+            label: "Camera FOV",
+            kind: "number",
+            minimum: Some(1.0),
+            maximum: Some(178.0),
+            step: Some(0.5),
+            modulation_target: Some("camera_fov"),
+        },
+        ParameterSchema {
+            path: "camera.orbit_degrees_per_second",
+            label: "Orbit speed",
+            kind: "number",
+            minimum: Some(-180.0),
+            maximum: Some(180.0),
+            step: Some(0.5),
+            modulation_target: None,
+        },
+        ParameterSchema {
+            path: "camera.shake_amplitude",
+            label: "Camera shake",
+            kind: "number",
+            minimum: Some(0.0),
+            maximum: Some(2.0),
+            step: Some(0.01),
+            modulation_target: Some("camera_shake"),
+        },
+        ParameterSchema {
+            path: "camera.mode",
+            label: "Orbit camera",
+            kind: "toggle",
+            minimum: None,
+            maximum: None,
+            step: None,
+            modulation_target: None,
+        },
+        ParameterSchema {
+            path: "render_defaults.background",
+            label: "Background",
+            kind: "color",
+            minimum: None,
+            maximum: None,
+            step: None,
+            modulation_target: None,
+        },
+    ]
+}
+
+#[tauri::command]
+fn update_project(
+    project: ProjectV1,
+    viewport: State<'_, ViewportController>,
+) -> Result<ProjectV1, String> {
+    project.validate().map_err(|error| error.to_string())?;
+    viewport.set_project(project.clone())?;
+    Ok(project)
+}
+
+#[tauri::command]
+fn save_project(path: PathBuf, mut project: ProjectV1) -> Result<(), String> {
+    project.visual_preset = None;
+    project.reaction_profile = None;
+    project.save(path).map_err(|error| error.to_string())
 }
 
 fn resolve_project_path(path: &std::path::Path) -> PathBuf {
@@ -161,6 +281,8 @@ pub fn run() {
             preview_reset,
             preview_quality,
             preview_stats,
+            update_project,
+            save_project,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Rustique desktop application");

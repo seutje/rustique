@@ -1,23 +1,10 @@
 import { create } from "zustand";
-
-export interface ProjectSummary {
-  path: string;
-  engineVersion: string;
-  durationSeconds: number;
-  fps: number;
-  particleCount: number;
-}
-
-interface EditorState {
-  project: ProjectSummary | null;
-  selectedPreset: string | null;
-  setProject: (project: ProjectSummary) => void;
-  setSelectedPreset: (preset: string) => void;
-}
-
-export const useEditorStore = create<EditorState>((set) => ({
-  project: null,
-  selectedPreset: null,
-  setProject: (project) => set({ project }),
-  setSelectedPreset: (selectedPreset) => set({ selectedPreset }),
-}));
+export type ModulationSource = "sub" | "bass" | "low_mids" | "mids" | "high_mids" | "highs" | "rms" | "transient" | "spectral_centroid" | "spectral_flux";
+export type ModulationTarget = "gravity_strength" | "particle_size" | "brightness" | "burst_emission" | "camera_fov" | "camera_shake";
+export interface ModulationMapping { enabled: boolean; source: ModulationSource; target: ModulationTarget; amount: number; offset: number; minimum: number; maximum: number; polarity: "normal" | "inverted"; curve: "linear" | "exponential"; attack_seconds: number; release_seconds: number; }
+export interface ProjectData { project_version: number; engine_version: string; seed: number; fps: number; duration_seconds: number; particle_system: { count: number; substeps: number; emitter: unknown }; forces: unknown[]; camera: Record<string, unknown> & { mode: "static" | "orbit"; vertical_fov_degrees: number; orbit_degrees_per_second: number; shake_amplitude: number }; render_defaults: { width: number; height: number; particle_size_pixels: number; background: number[] }; modulation_mappings: ModulationMapping[]; visual_preset: unknown | null; analysis_profile: unknown | null; reaction_profile: unknown | null; }
+export interface ParameterSchema { path: string; label: string; kind: "number" | "toggle" | "color"; minimum: number | null; maximum: number | null; step: number | null; modulationTarget: ModulationTarget | null; }
+export interface MacroSchema { id: string; label: string; target: string; minimum: number; maximum: number; default: number; }
+export interface EditorProject { path: string; project: ProjectData; parameters: ParameterSchema[]; macros: MacroSchema[]; }
+interface EditorState { document: EditorProject | null; dirty: boolean; setDocument: (document: EditorProject) => void; replaceProject: (project: ProjectData, dirty?: boolean) => void; }
+export const useEditorStore = create<EditorState>((set) => ({ document: null, dirty: false, setDocument: (document) => set({ document, dirty: false }), replaceProject: (project, dirty = true) => set((state) => ({ document: state.document ? { ...state.document, project } : null, dirty })) }));

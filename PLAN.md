@@ -908,22 +908,22 @@ Run the exact headless renderer on a rented GPU.
 
 ## Tasks
 
-- [ ] Publish or upload Docker image
-- [ ] Start a RunPod GPU Pod
-- [ ] Verify Vulkan / wgpu adapter
-- [ ] Upload render package
-- [ ] Render still
-- [ ] Render short clip
-- [ ] Render full test song segment
-- [ ] Record GPU model and performance
-- [ ] Compare local RTX 4070 and cloud output
-- [ ] Document RunPod launch procedure
+- [~] Publish or upload Docker image
+- [~] Start a RunPod GPU Pod
+- [~] Verify Vulkan / wgpu adapter
+- [~] Upload render package
+- [~] Render still
+- [~] Render short clip
+- [~] Render full test song segment
+- [~] Record GPU model and performance
+- [~] Compare local RTX 4070 and cloud output
+- [~] Document RunPod launch procedure
 
 ## Acceptance Criteria
 
-- [ ] Same render package works locally and on RunPod
-- [ ] No code changes are required for cloud rendering
-- [ ] Render output can be retrieved cleanly
+- [~] Same render package works locally and on RunPod
+- [~] No code changes are required for cloud rendering
+- [~] Render output can be retrieved cleanly
 
 ---
 
@@ -935,20 +935,20 @@ Optional convenience layer for sending heavy exports to a remote renderer.
 
 ## Tasks
 
-- [ ] Define remote render job schema
-- [ ] Package project automatically
-- [ ] Upload package
-- [ ] Start remote job
-- [ ] Poll job status
-- [ ] Download final output
-- [ ] Show progress in UI
-- [ ] Keep provider-specific code isolated
-- [ ] Support local render fallback
+- [~] Define remote render job schema
+- [~] Package project automatically
+- [~] Upload package
+- [~] Start remote job
+- [~] Poll job status
+- [~] Download final output
+- [~] Show progress in UI
+- [~] Keep provider-specific code isolated
+- [~] Support local render fallback
 
 ## Acceptance Criteria
 
-- [ ] Desktop can submit a project for remote rendering
-- [ ] Core renderer remains provider-independent
+- [~] Desktop can submit a project for remote rendering
+- [~] Core renderer remains provider-independent
 
 ---
 

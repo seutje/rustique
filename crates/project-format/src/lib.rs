@@ -52,6 +52,10 @@ pub struct ProjectV1 {
     pub liquid_chrome: LiquidChromeV1,
     #[serde(default)]
     pub water_droplets: WaterDropletsV1,
+    /// Optional independently configured systems, composited by ascending depth
+    /// and then declaration order. Empty preserves the version-1 single-system path.
+    #[serde(default)]
+    pub layers: Vec<SceneLayerV1>,
     #[serde(default)]
     pub modulation_mappings: Vec<ModulationMapping>,
     #[serde(default)]
@@ -76,6 +80,52 @@ pub enum RenderModeV1 {
     Volumetric,
     LiquidChrome,
     WaterDroplets,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LayerBlendModeV1 {
+    #[default]
+    Alpha,
+    Add,
+    Screen,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneLayerV1 {
+    pub name: String,
+    #[serde(default = "layer_visible")]
+    pub visible: bool,
+    #[serde(default)]
+    pub depth: i32,
+    #[serde(default)]
+    pub blend: LayerBlendModeV1,
+    #[serde(default = "layer_opacity")]
+    pub opacity: f32,
+    /// Scales particle count without changing the deterministic seed prefix.
+    #[serde(default = "layer_quality_scale")]
+    pub quality_scale: f32,
+    pub render_mode: RenderModeV1,
+    pub particle_system: ParticleSystemV1,
+    #[serde(default)]
+    pub forces: Vec<Force>,
+    #[serde(default)]
+    pub liquid_chrome: LiquidChromeV1,
+    #[serde(default)]
+    pub water_droplets: WaterDropletsV1,
+    #[serde(default)]
+    pub modulation_mappings: Vec<ModulationMapping>,
+}
+
+const fn layer_visible() -> bool {
+    true
+}
+const fn layer_opacity() -> f32 {
+    1.0
+}
+const fn layer_quality_scale() -> f32 {
+    1.0
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -614,6 +664,40 @@ impl ProjectV1 {
                 "water droplet properties must be finite and inside their documented ranges".into(),
             ));
         }
+        for layer in &self.layers {
+            if layer.name.trim().is_empty()
+                || !layer.opacity.is_finite()
+                || !(0.0..=1.0).contains(&layer.opacity)
+                || !layer.quality_scale.is_finite()
+                || layer.quality_scale <= 0.0
+                || layer.particle_system.count == 0
+                || layer.particle_system.substeps == 0
+            {
+                return Err(ProjectError::Validation(
+                    "scene layers require a name, opacity in 0..=1, positive quality scale, particle count, and substeps".into(),
+                ));
+            }
+            for mapping in &layer.modulation_mappings {
+                let values = [
+                    mapping.amount,
+                    mapping.offset,
+                    mapping.minimum,
+                    mapping.maximum,
+                    mapping.attack_seconds,
+                    mapping.release_seconds,
+                ];
+                if !values.iter().all(|value| value.is_finite())
+                    || mapping.minimum > mapping.maximum
+                    || mapping.attack_seconds < 0.0
+                    || mapping.release_seconds < 0.0
+                {
+                    return Err(ProjectError::Validation(format!(
+                        "layer '{}' has invalid modulation values",
+                        layer.name
+                    )));
+                }
+            }
+        }
         for mapping in &self.modulation_mappings {
             let values = [
                 mapping.amount,
@@ -713,6 +797,7 @@ mod tests {
             render_mode: RenderModeV1::Particles,
             liquid_chrome: LiquidChromeV1::default(),
             water_droplets: WaterDropletsV1::default(),
+            layers: Vec::new(),
             modulation_mappings: Vec::new(),
             automation_tracks: Vec::new(),
             scene_markers: Vec::new(),
@@ -728,6 +813,37 @@ mod tests {
         let project = sample();
         let json = serde_json::to_string(&project).unwrap();
         assert_eq!(serde_json::from_str::<ProjectV1>(&json).unwrap(), project);
+    }
+
+    #[test]
+    fn layered_scene_round_trips_and_validates() {
+        let mut project = sample();
+        project.layers.push(SceneLayerV1 {
+            name: "stars".into(),
+            visible: true,
+            depth: 2,
+            blend: LayerBlendModeV1::Add,
+            opacity: 0.8,
+            quality_scale: 0.5,
+            render_mode: RenderModeV1::Particles,
+            particle_system: project.particle_system.clone(),
+            forces: Vec::new(),
+            liquid_chrome: LiquidChromeV1::default(),
+            water_droplets: WaterDropletsV1::default(),
+            modulation_mappings: Vec::new(),
+        });
+        project.validate().unwrap();
+        let json = serde_json::to_string(&project).unwrap();
+        assert_eq!(serde_json::from_str::<ProjectV1>(&json).unwrap(), project);
+    }
+
+    #[test]
+    fn repository_layered_example_is_valid() {
+        let project: ProjectV1 =
+            serde_json::from_str(include_str!("../../../examples/multi-layer.rustique.json"))
+                .unwrap();
+        project.validate().unwrap();
+        assert!(project.layers.len() >= 3);
     }
 
     #[test]

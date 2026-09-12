@@ -238,7 +238,12 @@ impl OffscreenRenderTarget {
         Ok(pixels)
     }
 
-    pub(crate) fn save_png(&self, pixels: &[u8], path: &Path) -> Result<(), OffscreenError> {
+    /// Saves a tightly packed RGBA8 frame.
+    ///
+    /// # Errors
+    ///
+    /// Returns contextual file creation or PNG encoding errors.
+    pub fn save_png(&self, pixels: &[u8], path: &Path) -> Result<(), OffscreenError> {
         let file = File::create(path).map_err(|source| OffscreenError::CreatePng {
             path: path.to_owned(),
             source,

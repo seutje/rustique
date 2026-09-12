@@ -1,0 +1,37 @@
+{
+  "project_version": 1,
+  "engine_version": "0.1.0",
+  "seed": 32032,
+  "fps": 60,
+  "duration_seconds": 10.0,
+  "particle_system": { "count": 1, "substeps": 1, "emitter": { "type": "burst", "count": 1, "frame": 0, "respawn": "loop" } },
+  "forces": [],
+  "camera": { "position": [0.0, 0.0, 3.0], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 45.0 },
+  "render_defaults": { "width": 1280, "height": 720, "particle_size_pixels": 3.0, "background": [0.002, 0.004, 0.012, 1.0] },
+  "render_mode": "particles",
+  "layers": [
+    {
+      "name": "nebula background", "depth": -20, "blend": "screen", "opacity": 0.8,
+      "quality_scale": 0.5, "render_mode": "volumetric",
+      "particle_system": { "count": 50000, "substeps": 1, "emitter": { "type": "burst", "count": 50000, "frame": 0, "respawn": "loop" } }
+    },
+    {
+      "name": "stars", "depth": -5, "blend": "add", "opacity": 0.8,
+      "quality_scale": 1.0, "render_mode": "particles",
+      "particle_system": { "count": 30000, "substeps": 2, "emitter": { "type": "burst", "count": 30000, "frame": 0, "respawn": "loop" } },
+      "forces": [{ "type": "drag", "coefficient": 0.04 }]
+    },
+    {
+      "name": "foreground dust", "depth": 5, "blend": "screen", "opacity": 0.25,
+      "quality_scale": 0.35, "render_mode": "water_droplets",
+      "particle_system": { "count": 5000, "substeps": 1, "emitter": { "type": "burst", "count": 5000, "frame": 0, "respawn": "loop" } },
+      "water_droplets": { "density": 0.3, "size": 0.12, "size_variation": 0.8, "refraction_strength": 0.03, "fresnel_strength": 0.7, "gravity": 0.03, "emission": 0.25 }
+    },
+    {
+      "name": "transient burst", "depth": 10, "blend": "add", "opacity": 0.65,
+      "quality_scale": 0.5, "render_mode": "particles",
+      "particle_system": { "count": 12000, "substeps": 2, "emitter": { "type": "burst", "count": 12000, "frame": 0, "respawn": "loop" } },
+      "modulation_mappings": [{ "enabled": true, "source": "transient", "target": "burst_emission", "amount": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.01, "release_seconds": 0.2 }]
+    }
+  ]
+}

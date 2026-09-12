@@ -1102,23 +1102,28 @@ Combine multiple particle/material systems into one scene.
 
 ## Tasks
 
-- [ ] Define scene layer schema
-- [ ] Add per-layer simulation settings
-- [ ] Add per-layer modulation
-- [ ] Add per-layer blending
-- [ ] Add per-layer visibility
-- [ ] Add layer ordering/depth behavior
-- [ ] Add independent quality scaling
-- [ ] Add example:
-  - [ ] nebula background
-  - [ ] stars
-  - [ ] foreground dust
-  - [ ] transient burst layer
+- [x] Define scene layer schema
+- [x] Add per-layer simulation settings
+- [x] Add per-layer modulation
+- [x] Add per-layer blending
+- [x] Add per-layer visibility
+- [x] Add layer ordering/depth behavior
+- [x] Add independent quality scaling
+- [x] Add example:
+  - [x] nebula background
+  - [x] stars
+  - [x] foreground dust
+  - [x] transient burst layer
 
 ## Acceptance Criteria
 
-- [ ] At least three independent systems can render together
-- [ ] Layers serialize cleanly
+- [x] At least three independent systems can render together
+- [x] Layers serialize cleanly
+
+  - Added a deterministic headless compositor for particle, volumetric, and
+    water-droplet layers with alpha/add/screen blending, stable depth ordering,
+    visibility, per-layer settings/mappings, and particle quality scaling. See
+    `examples/multi-layer.rustique.json` and `docs/MULTI_LAYER_SCENES.md`.
 
 ---
 

@@ -6,15 +6,15 @@ use exporter::{
     render_png_sequence,
 };
 use project_format::{
-    AssetKind, EnvelopeSmoother, PackageAsset, PackageCreateOptions, ProjectV1, RenderModeV1,
-    RenderPackage, evaluate_mappings,
+    AssetKind, EnvelopeSmoother, LayerBlendModeV1, PackageAsset, PackageCreateOptions, ProjectV1,
+    RenderModeV1, RenderPackage, SceneLayerV1, evaluate_mappings,
 };
 use render_core::{
     BackendPreference, BenchmarkConfig, FluidConfig, FluidRenderer, GpuConfig, GpuContext,
-    LiquidChromeConfig, LiquidChromeRenderer, OffscreenRenderTarget, ParticleRenderer,
-    PerspectiveCamera, PostProcessConfig, PostProcessQuality, RgbaColor, SpatialGrid,
-    SpatialGridConfig, VolumetricConfig, VolumetricQuality, VolumetricRenderer, WaterDropletConfig,
-    WaterDropletRenderer,
+    LayerBlendMode, LiquidChromeConfig, LiquidChromeRenderer, OffscreenRenderTarget,
+    ParticleRenderer, PerspectiveCamera, PostProcessConfig, PostProcessQuality, RgbaColor,
+    SpatialGrid, SpatialGridConfig, VolumetricConfig, VolumetricQuality, VolumetricRenderer,
+    WaterDropletConfig, WaterDropletRenderer, composite_rgba8,
 };
 use simulation::{Force, SimulationTiming};
 
@@ -1265,6 +1265,17 @@ fn render_project_still(
         PostProcessConfig::for_quality(options.post_quality),
     )
     .map_err(|error| format!("failed to create offscreen target: {error}"))?;
+    if !project.layers.is_empty() {
+        return render_layered_still(
+            context,
+            options,
+            project_path,
+            &project,
+            &target,
+            width,
+            height,
+        );
+    }
     if project.render_mode == RenderModeV1::LiquidChrome {
         let material = &project.liquid_chrome;
         let environment = material.environment.as_ref().map(|path| {
@@ -1420,6 +1431,165 @@ fn render_project_still(
         options.output.display()
     );
     Ok(())
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::too_many_arguments
+)]
+fn render_layered_still(
+    context: &GpuContext,
+    options: &StillOptions,
+    project_path: &std::path::Path,
+    project: &ProjectV1,
+    target: &OffscreenRenderTarget,
+    width: u32,
+    height: u32,
+) -> Result<(), String> {
+    let background = project.render_defaults.background;
+    let mut composite = vec![0_u8; width as usize * height as usize * 4];
+    for pixel in composite.chunks_exact_mut(4) {
+        pixel.copy_from_slice(&[
+            (background[0] * 255.0).round() as u8,
+            (background[1] * 255.0).round() as u8,
+            (background[2] * 255.0).round() as u8,
+            (background[3] * 255.0).round() as u8,
+        ]);
+    }
+    let mut layers: Vec<(usize, &SceneLayerV1)> = project.layers.iter().enumerate().collect();
+    layers.sort_by_key(|(index, layer)| (layer.depth, *index));
+    let mut rendered = 0;
+    for (_, layer) in layers {
+        if !layer.visible || layer.opacity == 0.0 {
+            continue;
+        }
+        let pixels = render_scene_layer(context, options, project, layer, target, width, height)?;
+        let blend = match layer.blend {
+            LayerBlendModeV1::Alpha => LayerBlendMode::Alpha,
+            LayerBlendModeV1::Add => LayerBlendMode::Add,
+            LayerBlendModeV1::Screen => LayerBlendMode::Screen,
+        };
+        composite_rgba8(&mut composite, &pixels, blend, layer.opacity);
+        rendered += 1;
+    }
+    target
+        .save_png(&composite, &options.output)
+        .map_err(|error| format!("failed to save layered still: {error}"))?;
+    println!(
+        "Rendered {rendered} visible layers from {} frame {} at {}x{} to {}",
+        project_path.display(),
+        options.frame,
+        width,
+        height,
+        options.output.display()
+    );
+    Ok(())
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::too_many_arguments
+)]
+fn render_scene_layer(
+    context: &GpuContext,
+    options: &StillOptions,
+    project: &ProjectV1,
+    layer: &SceneLayerV1,
+    target: &OffscreenRenderTarget,
+    width: u32,
+    height: u32,
+) -> Result<Vec<u8>, String> {
+    let clear = RgbaColor::new(0.0, 0.0, 0.0, 1.0);
+    let scaled_count = ((f64::from(layer.particle_system.count) * f64::from(layer.quality_scale))
+        .round()
+        .clamp(1.0, f64::from(u32::MAX))) as u32;
+    match layer.render_mode {
+        RenderModeV1::Volumetric => {
+            let quality = match options.post_quality {
+                PostProcessQuality::Draft => VolumetricQuality::Draft,
+                PostProcessQuality::Preview => VolumetricQuality::Preview,
+                PostProcessQuality::Final => VolumetricQuality::Final,
+            };
+            VolumetricRenderer::new(
+                context,
+                scaled_count,
+                project.seed ^ hash_name(&layer.name),
+                VolumetricConfig::for_quality(quality),
+            )
+            .render_frame(context, target, options.frame, project.fps, clear)
+            .map_err(|error| format!("failed to render layer '{}': {error}", layer.name))
+        }
+        RenderModeV1::WaterDroplets => {
+            let d = &layer.water_droplets;
+            WaterDropletRenderer::new(
+                context,
+                width,
+                height,
+                WaterDropletConfig {
+                    seed: project.seed ^ hash_name(&layer.name),
+                    density: d.density,
+                    size: d.size,
+                    size_variation: d.size_variation,
+                    refraction_strength: d.refraction_strength,
+                    fresnel_strength: d.fresnel_strength,
+                    gravity: d.gravity,
+                    emission: d.emission,
+                },
+            )
+            .render_frame(
+                context,
+                target,
+                options.frame as f32 / project.fps as f32,
+                0.0,
+                clear,
+            )
+            .map_err(|error| format!("failed to render layer '{}': {error}", layer.name))
+        }
+        RenderModeV1::Particles => {
+            let mut renderer =
+                ParticleRenderer::new(context, scaled_count, project.seed ^ hash_name(&layer.name))
+                    .map_err(|error| format!("failed to create layer '{}': {error}", layer.name))?;
+            renderer
+                .set_forces(context, &layer.forces)
+                .map_err(|error| format!("failed to configure layer '{}': {error}", layer.name))?;
+            let fps = NonZeroU32::new(project.fps).ok_or("project FPS must be positive")?;
+            let substeps = NonZeroU32::new(layer.particle_system.substeps)
+                .ok_or("layer substeps must be positive")?;
+            renderer
+                .render_timeline_frame(
+                    context,
+                    target,
+                    options.frame,
+                    SimulationTiming::new(fps, fps, substeps),
+                    BenchmarkConfig {
+                        particle_size_pixels: project.render_defaults.particle_size_pixels,
+                        view_projection: Some(project_camera_matrix(
+                            project,
+                            options.frame as f32 / project.fps as f32,
+                            width,
+                            height,
+                        )),
+                        ..BenchmarkConfig::default()
+                    },
+                    clear,
+                )
+                .map_err(|error| format!("failed to render layer '{}': {error}", layer.name))
+        }
+        RenderModeV1::LiquidChrome => Err(format!(
+            "layer '{}' uses liquid_chrome, which cannot yet be composited without a per-layer environment path",
+            layer.name
+        )),
+    }
+}
+
+fn hash_name(name: &str) -> u64 {
+    name.bytes().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x100_0000_01b3)
+    })
 }
 
 #[allow(clippy::cast_precision_loss)]

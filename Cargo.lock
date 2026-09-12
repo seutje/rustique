@@ -3051,6 +3051,7 @@ name = "rustique-desktop"
 version = "0.1.0"
 dependencies = [
  "audio-engine",
+ "exporter",
  "pollster",
  "project-format",
  "raw-window-handle",

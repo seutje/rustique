@@ -9,6 +9,9 @@ use render_core::{GpuConfig, GpuContext};
 use serde::Serialize;
 use tauri::{Manager, State};
 
+mod preview;
+use preview::{PreviewJobStatus, PreviewQueue};
+
 #[cfg(target_os = "windows")]
 mod viewport;
 #[cfg(target_os = "windows")]
@@ -290,6 +293,41 @@ fn preview_stats(viewport: State<'_, ViewportController>) -> Result<PreviewStats
     viewport.stats()
 }
 
+#[tauri::command]
+fn enqueue_preview(
+    kind: &str,
+    project: ProjectV1,
+    audio_path: PathBuf,
+    start_frame: u32,
+    end_frame: u32,
+    use_final_settings: bool,
+    queue: State<'_, PreviewQueue>,
+) -> Result<u64, String> {
+    queue.enqueue(
+        kind,
+        project,
+        audio_path,
+        start_frame,
+        end_frame,
+        use_final_settings,
+    )
+}
+
+#[tauri::command]
+fn preview_jobs(queue: State<'_, PreviewQueue>) -> Result<Vec<PreviewJobStatus>, String> {
+    queue.statuses()
+}
+
+#[tauri::command]
+fn clear_previews(queue: State<'_, PreviewQueue>) -> Result<(), String> {
+    queue.clear()
+}
+
+#[tauri::command]
+fn open_preview(path: PathBuf, queue: State<'_, PreviewQueue>) -> Result<(), String> {
+    queue.open(&path)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 /// Starts the desktop application event loop.
 ///
@@ -307,6 +345,7 @@ pub fn run() {
                 return Err("embedded viewport currently requires Windows".into());
             };
             app.manage(ViewportController::new(handle.hwnd.get())?);
+            app.manage(PreviewQueue::new()?);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -321,6 +360,10 @@ pub fn run() {
             preview_stats,
             update_project,
             save_project,
+            enqueue_preview,
+            preview_jobs,
+            clear_previews,
+            open_preview,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Rustique desktop application");

@@ -4,6 +4,7 @@ export interface GpuSummary { adapter: string; backend: string; deviceType: stri
 export interface ActiveModulation { target: string; sourceValue: number; outputValue: number; }
 export interface PreviewStats { frameIndex: number; framesPerSecond: number; frameTimeMs: number; particleCount: number; gpuComputeMs: number | null; gpuRenderMs: number | null; playing: boolean; activeModulations: ActiveModulation[]; }
 export interface TimelineAudio { durationSeconds: number; waveform: [number, number][]; transientTimes: number[]; beatTimes: number[]; }
+export interface PreviewJob { id: number; kind: "still" | "slice"; state: string; progress: number; outputPath: string | null; error: string | null; }
 export const queryGpuInfo = () => invoke<GpuSummary>("gpu_info");
 export const loadProject = (path: string) => invoke<EditorProject>("load_project", { path });
 export const updateProject = (project: ProjectData) => invoke<ProjectData>("update_project", { project });
@@ -15,3 +16,7 @@ export const seekPreview = (frame: number) => invoke<void>("preview_seek", { fra
 export const resetPreview = () => invoke<void>("preview_reset");
 export const setPreviewQuality = (quality: string) => invoke<void>("preview_quality", { quality });
 export const queryPreviewStats = () => invoke<PreviewStats>("preview_stats");
+export const enqueuePreview = (kind: "still" | "slice", project: ProjectData, audioPath: string, startFrame: number, endFrame: number, useFinalSettings: boolean) => invoke<number>("enqueue_preview", { kind, project, audioPath, startFrame, endFrame, useFinalSettings });
+export const queryPreviewJobs = () => invoke<PreviewJob[]>("preview_jobs");
+export const clearPreviews = () => invoke<void>("clear_previews");
+export const openPreview = (path: string) => invoke<void>("open_preview", { path });

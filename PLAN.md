@@ -748,19 +748,24 @@ Support rapid look-development before committing to long renders.
 
 ## Tasks
 
-- [ ] Add interactive preview mode
-- [ ] Add high-quality still preview
-- [ ] Add high-quality slice preview
-- [ ] Add preview queue
-- [ ] Add temporary preview output management
-- [ ] Add render comparison workflow if simple enough
-- [ ] Add "use final settings for selected range" option
+- [x] Add interactive preview mode
+  - Reuses the validated Phase 17 viewport path.
+- [x] Add high-quality still preview
+- [x] Add high-quality slice preview
+- [x] Add preview queue
+- [x] Add temporary preview output management
+- [~] Add render comparison workflow if simple enough
+  - Inline comparison was replaced with opening completed PNG/MP4 previews in the user's default application.
+- [x] Add "use final settings for selected range" option
 
 ## Acceptance Criteria
 
-- [ ] User can render one full-quality 4K still
-- [ ] User can render a short near-final-quality clip
-- [ ] Preview workflow does not require full-song export
+- [x] User can render one full-quality 4K still
+  - Interactively validated through the shared final-quality offscreen pipeline.
+- [x] User can render a short near-final-quality clip
+  - Queued H.264 slice rendering and default-application opening were interactively validated.
+- [x] Preview workflow does not require full-song export
+  - Still and selected-range workflows were interactively validated independently of full-song export.
 
 ---
 

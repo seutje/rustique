@@ -10,9 +10,9 @@ use project_format::{
     evaluate_mappings,
 };
 use render_core::{
-    BackendPreference, BenchmarkConfig, GpuConfig, GpuContext, OffscreenRenderTarget,
-    ParticleRenderer, PerspectiveCamera, PostProcessConfig, PostProcessQuality, RgbaColor,
-    SpatialGrid, SpatialGridConfig,
+    BackendPreference, BenchmarkConfig, FluidConfig, FluidRenderer, GpuConfig, GpuContext,
+    OffscreenRenderTarget, ParticleRenderer, PerspectiveCamera, PostProcessConfig,
+    PostProcessQuality, RgbaColor, SpatialGrid, SpatialGridConfig,
 };
 use simulation::{Force, SimulationTiming};
 
@@ -118,6 +118,7 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
         }
         Some(Command::Benchmark(benchmark)) => run_benchmark(&context, &benchmark),
         Some(Command::SpatialBenchmark(options)) => run_spatial_benchmark(&context, &options),
+        Some(Command::Fluid(options)) => run_fluid(&context, &options),
         Some(Command::AudioInfo(_)) => unreachable!("audio command returned before GPU setup"),
         Some(Command::ModulationInfo(_)) => {
             unreachable!("modulation command returned before GPU setup")
@@ -145,6 +146,7 @@ enum Command {
     Particles(ParticleOptions),
     Benchmark(BenchmarkOptions),
     SpatialBenchmark(SpatialBenchmarkOptions),
+    Fluid(FluidOptions),
     AudioInfo(AudioInfoOptions),
     ModulationInfo(ModulationInfoOptions),
     Sequence(SequenceOptions),
@@ -243,6 +245,21 @@ struct SpatialBenchmarkOptions {
 }
 
 #[derive(Debug, PartialEq)]
+struct FluidOptions {
+    output: PathBuf,
+    count: u32,
+    frames: u32,
+    width: u32,
+    height: u32,
+    cells: u32,
+    pressure: f32,
+    viscosity: f32,
+    cohesion: f32,
+    audio_pressure: f32,
+    audio_turbulence: f32,
+}
+
+#[derive(Debug, PartialEq)]
 struct AudioInfoOptions {
     input: PathBuf,
     time_seconds: f64,
@@ -313,6 +330,10 @@ impl CliOptions {
                     let benchmark =
                         SpatialBenchmarkOptions::parse(&mut args, &mut options.backend)?;
                     set_command(&mut options.command, Command::SpatialBenchmark(benchmark))?;
+                }
+                "fluid" => {
+                    let fluid = FluidOptions::parse(&mut args, &mut options.backend)?;
+                    set_command(&mut options.command, Command::Fluid(fluid))?;
                 }
                 "audio-info" => {
                     let audio = AudioInfoOptions::parse(&mut args)?;
@@ -544,6 +565,77 @@ impl SpatialBenchmarkOptions {
                 "--backend" => *backend = parse_backend(&required_value(args, "--backend")?)?,
                 _ => return Err(format!("unknown spatial-benchmark argument: {argument}")),
             }
+        }
+        Ok(result)
+    }
+}
+
+impl FluidOptions {
+    fn parse(
+        args: &mut impl Iterator<Item = String>,
+        backend: &mut BackendPreference,
+    ) -> Result<Self, String> {
+        let mut result = Self {
+            output: PathBuf::new(),
+            count: 100_000,
+            frames: 60,
+            width: 1920,
+            height: 1080,
+            cells: 32,
+            pressure: 0.45,
+            viscosity: 0.18,
+            cohesion: 0.35,
+            audio_pressure: 0.0,
+            audio_turbulence: 0.0,
+        };
+        while let Some(argument) = args.next() {
+            match argument.as_str() {
+                "--output" => result.output = PathBuf::from(required_value(args, "--output")?),
+                "--count" => {
+                    result.count = parse_dimension("count", &required_value(args, "--count")?)?;
+                }
+                "--frames" => {
+                    result.frames = parse_dimension("frames", &required_value(args, "--frames")?)?;
+                }
+                "--width" => {
+                    result.width = parse_dimension("width", &required_value(args, "--width")?)?;
+                }
+                "--height" => {
+                    result.height = parse_dimension("height", &required_value(args, "--height")?)?;
+                }
+                "--cells" => {
+                    result.cells = parse_dimension("cells", &required_value(args, "--cells")?)?;
+                }
+                "--pressure" => {
+                    result.pressure =
+                        parse_positive_float("pressure", &required_value(args, "--pressure")?)?;
+                }
+                "--viscosity" => {
+                    result.viscosity =
+                        parse_positive_float("viscosity", &required_value(args, "--viscosity")?)?;
+                }
+                "--cohesion" => {
+                    result.cohesion =
+                        parse_positive_float("cohesion", &required_value(args, "--cohesion")?)?;
+                }
+                "--audio-pressure" => {
+                    result.audio_pressure = parse_positive_float(
+                        "audio-pressure",
+                        &required_value(args, "--audio-pressure")?,
+                    )?;
+                }
+                "--audio-turbulence" => {
+                    result.audio_turbulence = parse_positive_float(
+                        "audio-turbulence",
+                        &required_value(args, "--audio-turbulence")?,
+                    )?;
+                }
+                "--backend" => *backend = parse_backend(&required_value(args, "--backend")?)?,
+                _ => return Err(format!("unknown fluid argument: {argument}")),
+            }
+        }
+        if result.output.as_os_str().is_empty() {
+            return Err("fluid requires --output <path>".to_owned());
         }
         Ok(result)
     }
@@ -1105,6 +1197,42 @@ fn run_spatial_benchmark(
 }
 
 #[allow(clippy::cast_precision_loss)]
+fn run_fluid(context: &GpuContext, options: &FluidOptions) -> Result<(), String> {
+    let target = OffscreenRenderTarget::new(context, options.width, options.height)
+        .map_err(|error| format!("failed to create fluid target: {error}"))?;
+    let mut fluid = FluidRenderer::new(
+        context,
+        options.count,
+        1,
+        FluidConfig {
+            cells_per_axis: options.cells,
+            pressure: options.pressure,
+            viscosity: options.viscosity,
+            cohesion: options.cohesion,
+            audio_pressure: options.audio_pressure,
+            audio_turbulence: options.audio_turbulence,
+            ..FluidConfig::default()
+        },
+        options.width,
+        options.height,
+    )
+    .map_err(|error| format!("failed to create fluid simulation: {error}"))?;
+    let stats = fluid
+        .save_png(context, &target, options.frames, &options.output)
+        .map_err(|error| format!("failed to render fluid: {error}"))?;
+    println!(
+        "Rendered {} SPH slime particles to {}: avg_density={:.3}, max_density={:.3}, memory={:.2} MiB, final_frame_ms={:.3}",
+        stats.particle_count,
+        options.output.display(),
+        stats.average_density,
+        stats.maximum_density,
+        stats.gpu_memory_bytes as f64 / 1_048_576.0,
+        stats.elapsed_ms,
+    );
+    Ok(())
+}
+
+#[allow(clippy::cast_precision_loss)]
 fn render_project_still(
     context: &GpuContext,
     options: &StillOptions,
@@ -1320,6 +1448,10 @@ fn print_help() {
          particle-render spatial-benchmark [--count 100000] [--cells 32] \
          [--cell-capacity 64] [--max-neighbors 128] [--iterations 3] \
          [--debug-output grid.png] [--backend auto|dx12|vulkan]\n\
+         particle-render fluid --output slime.png [--count 100000] [--frames 60] \
+         [--width 1920] [--height 1080] [--cells 32] [--pressure 0.45] \
+         [--viscosity 0.18] [--cohesion 0.35] [--audio-pressure 0] \
+         [--audio-turbulence 0] [--backend auto|dx12|vulkan]\n\
          particle-render audio-info <audio-path> [--time seconds]\n\
          particle-render modulation-info <project.json> <audio-path> [--time seconds]\n\
          particle-render package-create <project.json> --audio <path> --output <name.rustiqueproject> \
@@ -1602,6 +1734,32 @@ mod tests {
                 count: 500_000,
                 cells_per_axis: 48,
                 debug_output: Some(_),
+                ..
+            }))
+        ));
+    }
+
+    #[test]
+    fn parses_fluid_options() {
+        let options = CliOptions::parse(
+            [
+                "fluid",
+                "--output",
+                "slime.png",
+                "--count",
+                "500000",
+                "--audio-pressure",
+                "0.8",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .unwrap();
+        assert!(matches!(
+            options.command,
+            Some(Command::Fluid(FluidOptions {
+                count: 500_000,
+                audio_pressure: 0.8,
                 ..
             }))
         ));

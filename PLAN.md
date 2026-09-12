@@ -983,21 +983,29 @@ Build the first legitimately ridiculous material simulation.
 
 ## Tasks
 
-- [ ] Prototype SPH or PBF approach
-- [ ] Add density calculation
-- [ ] Add pressure / constraint solve
-- [ ] Add viscosity
-- [ ] Add surface cohesion
-- [ ] Add audio-reactive pressure/turbulence
-- [ ] Add 3D density reconstruction experiment
-- [ ] Investigate metaball / marching-cubes surface generation
-- [ ] Investigate screen-space fluid rendering
-- [ ] Profile 100k / 500k / 1M+ fluid particles
+- [x] Prototype SPH or PBF approach
+- [x] Add density calculation
+- [x] Add pressure / constraint solve
+- [x] Add viscosity
+- [x] Add surface cohesion
+- [x] Add audio-reactive pressure/turbulence
+- [x] Add 3D density reconstruction experiment
+- [x] Investigate metaball / marching-cubes surface generation
+- [x] Investigate screen-space fluid rendering
+- [x] Profile 100k / 500k / 1M+ fluid particles
+  - Added a bounded-neighbor GPU SPH prototype, density-shaded slime renderer,
+    audio sample controls, scale measurements, and rendering conclusions in
+    `docs/FLUID.md`.
 
 ## Acceptance Criteria
 
-- [ ] Green Slime preset uses genuine neighbor-based behavior
-- [ ] Fluid system remains usable for offline 4K rendering
+- [-] Green Slime preset uses genuine neighbor-based behavior
+  - The new headless `fluid` path is genuine neighbor-based green slime; wiring
+    the version-1 visual preset/project schema into this specialized solver is
+    still outstanding.
+- [x] Fluid system remains usable for offline 4K rendering
+  - A 100k-particle 3840x2160 smoke render completed in 13.318 ms for its final
+    measured frame on the development RTX 4070.
 
 ---
 

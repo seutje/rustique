@@ -1,6 +1,7 @@
 //! Shared, window-independent rendering infrastructure.
 
 mod camera;
+mod fluid;
 mod gpu;
 mod offscreen;
 mod particles;
@@ -9,6 +10,7 @@ mod spatial_grid;
 mod surface;
 
 pub use camera::PerspectiveCamera;
+pub use fluid::{FluidConfig, FluidError, FluidFrameStats, FluidRenderer};
 pub use gpu::{BackendPreference, GpuConfig, GpuContext, GpuInfo, GpuInitError};
 pub use offscreen::{OffscreenError, OffscreenRenderTarget, RgbaColor};
 pub use particles::{

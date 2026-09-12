@@ -543,25 +543,27 @@ Make visual systems data-driven and composable.
 
 ## Tasks
 
-- [ ] Define visual preset schema
-- [ ] Define macro parameter schema
-- [ ] Define preset defaults
-- [ ] Define default modulation recommendations
-- [ ] Load presets from files
-- [ ] Add preset override support
-- [ ] Implement first visual presets:
-  - [ ] Star System
-  - [ ] Nebula
-  - [ ] Liquid Chrome prototype
-  - [ ] Green Slime prototype
-  - [ ] Water Droplets prototype
-- [ ] Ensure presets reuse common engine systems where possible
+- [x] Define visual preset schema
+- [x] Define macro parameter schema
+- [x] Define preset defaults
+- [x] Define default modulation recommendations
+- [x] Load presets from files
+- [x] Add preset override support
+- [x] Implement first visual presets:
+  - [x] Star System
+  - [x] Nebula
+  - [x] Liquid Chrome prototype
+  - [x] Green Slime prototype
+  - [x] Water Droplets prototype
+- [x] Ensure presets reuse common engine systems where possible
 
 ## Acceptance Criteria
 
-- [ ] Presets are not hardcoded into UI logic
-- [ ] At least three visually distinct presets work
-- [ ] Preset parameters can be overridden per project
+- [x] Presets are not hardcoded into UI logic
+- [x] At least three visually distinct presets work
+  - Star System, Nebula, and Liquid Chrome rendered distinct validated frames from file-backed data.
+- [x] Preset parameters can be overridden per project
+  - Named, range-checked macro overrides are stored in each project's preset selection.
 
 ---
 

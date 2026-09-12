@@ -102,4 +102,7 @@ usage.
 Perspective, orbit, dolly, drift, and audio-reactive camera settings are stored
 in project data. See [`docs/CAMERA.md`](docs/CAMERA.md).
 
+Versioned visual presets and project-local macro overrides are documented in
+[`docs/PRESETS.md`](docs/PRESETS.md).
+
 The future desktop editor belongs under `apps/desktop`; the render core and CLI do not depend on Tauri or a window.

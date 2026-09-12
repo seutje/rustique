@@ -41,5 +41,9 @@
     { "source": "transient", "target": "burst_emission", "amount": 5000.0, "offset": 0.0, "minimum": 0.0, "maximum": 5000.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.1 },
     { "source": "bass", "target": "camera_fov", "amount": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "polarity": "normal", "curve": "linear", "attack_seconds": 0.04, "release_seconds": 0.3 },
     { "source": "transient", "target": "camera_shake", "amount": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.12 }
-  ]
+  ],
+  "visual_preset": {
+    "source": "../presets/star-system.json",
+    "overrides": { "macros": { "density": 100000.0, "orbit_speed": 8.0 } }
+  }
 }

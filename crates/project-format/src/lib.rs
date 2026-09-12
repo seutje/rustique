@@ -1,10 +1,14 @@
 //! Versioned, renderer-independent Rustique project representation.
 
 mod modulation;
+mod preset;
 
 pub use modulation::{
     ActiveModulation, EnvelopeSmoother, ModulatedParameters, ModulationCurve, ModulationMapping,
     ModulationPolarity, ModulationSource, ModulationTarget, evaluate_mappings,
+};
+pub use preset::{
+    MacroParameterV1, MacroTargetV1, PresetOverridesV1, PresetSelectionV1, VisualPresetV1,
 };
 
 use serde::{Deserialize, Serialize};
@@ -32,6 +36,8 @@ pub struct ProjectV1 {
     pub render_defaults: RenderDefaultsV1,
     #[serde(default)]
     pub modulation_mappings: Vec<ModulationMapping>,
+    #[serde(default)]
+    pub visual_preset: Option<PresetSelectionV1>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -240,10 +246,19 @@ impl ProjectV1 {
             path: path.to_owned(),
             source,
         })?;
-        let project: Self = serde_json::from_str(&json).map_err(|source| ProjectError::Parse {
-            path: path.to_owned(),
-            source,
-        })?;
+        let mut project: Self =
+            serde_json::from_str(&json).map_err(|source| ProjectError::Parse {
+                path: path.to_owned(),
+                source,
+            })?;
+        if let Some(selection) = project.visual_preset.clone() {
+            let preset_path = path
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join(&selection.source);
+            let preset = VisualPresetV1::load(&preset_path)?;
+            preset.apply(&mut project, &selection.overrides)?;
+        }
         project.validate()?;
         Ok(project)
     }
@@ -423,6 +438,7 @@ mod tests {
                 background: [0.0, 0.0, 0.0, 1.0],
             },
             modulation_mappings: Vec::new(),
+            visual_preset: None,
         }
     }
 

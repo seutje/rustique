@@ -1,0 +1,9 @@
+{
+  "preset_version": 1, "id": "nebula", "display_name": "Nebula", "description": "Slow turbulent cloud",
+  "particle_system": { "count": 140000, "substeps": 2, "emitter": { "type": "burst", "count": 140000, "frame": 0, "respawn": "loop" } },
+  "forces": [ { "type": "curl_noise", "strength": 0.18, "frequency": 2.0 }, { "type": "drag", "coefficient": 0.08 } ],
+  "camera": { "position": [0.0, 0.3, 3.8], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 52.0, "mode": "static", "drift_amplitude": [0.08, 0.04, 0.05], "drift_frequency_hz": 0.04, "fov_modulation_degrees": 4.0, "shake_amplitude": 0.01 },
+  "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 4.0, "background": [0.005, 0.0, 0.02, 1.0] },
+  "macros": [ { "id": "turbulence", "label": "Turbulence", "target": "force_strength_scale", "minimum": 0.1, "maximum": 3.0, "default": 1.0 }, { "id": "particle_size", "label": "Particle Size", "target": "particle_size", "minimum": 1.0, "maximum": 12.0, "default": 4.0 } ],
+  "recommended_mappings": [ { "source": "mids", "target": "brightness", "amount": 1.4, "offset": 0.4, "minimum": 0.0, "maximum": 2.0, "polarity": "normal", "curve": "linear", "attack_seconds": 0.2, "release_seconds": 0.8 } ]
+}

@@ -1,0 +1,9 @@
+{
+  "preset_version": 1, "id": "water-droplets", "display_name": "Water Droplets", "description": "Falling and repelling droplet prototype",
+  "particle_system": { "count": 90000, "substeps": 2, "emitter": { "type": "continuous", "particles_per_second": 12000.0, "respawn": "loop" } },
+  "forces": [ { "type": "gravity", "acceleration": [0.0, -0.18, 0.0] }, { "type": "point_repulsor", "position": [0.0, -0.8, 0.0], "strength": 0.08 }, { "type": "drag", "coefficient": 0.015 } ],
+  "camera": { "position": [0.0, 0.0, 3.2], "target": [0.0, -0.1, 0.0], "vertical_fov_degrees": 48.0, "mode": "static", "drift_amplitude": [0.02, 0.01, 0.02], "fov_modulation_degrees": 3.0 },
+  "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 2.8, "background": [0.0, 0.008, 0.02, 1.0] },
+  "macros": [ { "id": "droplet_size", "label": "Droplet Size", "target": "particle_size", "minimum": 1.0, "maximum": 8.0, "default": 2.8 }, { "id": "gravity", "label": "Gravity", "target": "force_strength_scale", "minimum": 0.2, "maximum": 3.0, "default": 1.0 } ],
+  "recommended_mappings": [ { "source": "highs", "target": "brightness", "amount": 1.2, "offset": 0.5, "minimum": 0.0, "maximum": 2.0, "polarity": "normal", "curve": "linear", "attack_seconds": 0.01, "release_seconds": 0.15 } ]
+}

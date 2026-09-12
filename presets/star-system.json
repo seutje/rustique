@@ -1,0 +1,20 @@
+{
+  "preset_version": 1, "id": "star-system", "display_name": "Star System", "description": "Orbiting stellar particle cloud",
+  "particle_system": { "count": 100000, "substeps": 2, "emitter": { "type": "burst", "count": 100000, "frame": 0, "respawn": "loop" } },
+  "forces": [
+    { "type": "point_attractor", "position": [0.0, 0.0, 0.0], "strength": 0.08 },
+    { "type": "vortex", "center": [0.0, 0.0, 0.0], "strength": 0.2 },
+    { "type": "drag", "coefficient": 0.02 }
+  ],
+  "camera": { "position": [0.0, 0.0, 3.0], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 45.0, "mode": "orbit", "orbit_degrees_per_second": 8.0, "drift_amplitude": [0.03, 0.02, 0.03], "fov_modulation_degrees": 8.0, "shake_amplitude": 0.03 },
+  "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 2.0, "background": [0.0, 0.0, 0.0, 1.0] },
+  "macros": [
+    { "id": "density", "label": "Density", "target": "particle_count", "minimum": 10000.0, "maximum": 1000000.0, "default": 100000.0 },
+    { "id": "orbit_speed", "label": "Orbit Speed", "target": "orbit_speed", "minimum": -30.0, "maximum": 30.0, "default": 8.0 }
+  ],
+  "recommended_mappings": [
+    { "source": "bass", "target": "gravity_strength", "amount": 0.12, "offset": 0.04, "minimum": 0.0, "maximum": 0.3, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.02, "release_seconds": 0.3 },
+    { "source": "transient", "target": "camera_shake", "amount": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.12 },
+    { "source": "bass", "target": "camera_fov", "amount": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "polarity": "normal", "curve": "linear", "attack_seconds": 0.04, "release_seconds": 0.3 }
+  ]
+}

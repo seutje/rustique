@@ -1,0 +1,9 @@
+{
+  "preset_version": 1, "id": "green-slime", "display_name": "Green Slime", "description": "Elastic noisy blob prototype",
+  "particle_system": { "count": 120000, "substeps": 3, "emitter": { "type": "burst", "count": 120000, "frame": 0, "respawn": "loop" } },
+  "forces": [ { "type": "directional_noise", "strength": 0.22, "frequency": 3.0 }, { "type": "point_attractor", "position": [0.0, -0.2, 0.0], "strength": 0.12 }, { "type": "sphere_constraint", "center": [0.0, 0.0, 0.0], "radius": 0.85, "bounce": 0.35 } ],
+  "camera": { "position": [0.0, 0.15, 2.8], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 42.0, "mode": "static", "drift_amplitude": [0.03, 0.03, 0.02], "shake_amplitude": 0.025 },
+  "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 5.0, "background": [0.0, 0.015, 0.002, 1.0] },
+  "macros": [ { "id": "viscosity", "label": "Viscosity", "target": "force_strength_scale", "minimum": 0.2, "maximum": 2.0, "default": 1.0 }, { "id": "globule_size", "label": "Globule Size", "target": "particle_size", "minimum": 2.0, "maximum": 10.0, "default": 5.0 } ],
+  "recommended_mappings": [ { "source": "transient", "target": "burst_emission", "amount": 10000.0, "offset": 0.0, "minimum": 0.0, "maximum": 10000.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.2 } ]
+}

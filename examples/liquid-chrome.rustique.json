@@ -1,0 +1,13 @@
+{
+  "project_version": 1,
+  "engine_version": "0.1.0",
+  "seed": 88421,
+  "fps": 60,
+  "duration_seconds": 10.0,
+  "particle_system": { "count": 1, "substeps": 1, "emitter": { "type": "burst", "count": 1, "frame": 0, "respawn": "loop" } },
+  "forces": [],
+  "camera": { "position": [0.0, 0.0, 3.0], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 45.0 },
+  "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 2.0, "background": [0.0, 0.0, 0.0, 1.0] },
+  "modulation_mappings": [],
+  "visual_preset": { "source": "../presets/liquid-chrome.json", "overrides": { "macros": { "flow": 1.25 } } }
+}

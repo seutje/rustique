@@ -1,0 +1,9 @@
+{
+  "preset_version": 1, "id": "liquid-chrome", "display_name": "Liquid Chrome", "description": "Dense constrained metallic-flow prototype",
+  "particle_system": { "count": 180000, "substeps": 3, "emitter": { "type": "burst", "count": 180000, "frame": 0, "respawn": "loop" } },
+  "forces": [ { "type": "curl_noise", "strength": 0.35, "frequency": 5.0 }, { "type": "sphere_constraint", "center": [0.0, 0.0, 0.0], "radius": 0.75, "bounce": 0.7 }, { "type": "drag", "coefficient": 0.12 } ],
+  "camera": { "position": [0.0, 0.0, 2.6], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 38.0, "mode": "orbit", "orbit_degrees_per_second": 4.0, "shake_amplitude": 0.015 },
+  "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 3.5, "background": [0.015, 0.015, 0.02, 1.0] },
+  "macros": [ { "id": "flow", "label": "Flow", "target": "force_strength_scale", "minimum": 0.2, "maximum": 2.5, "default": 1.0 }, { "id": "camera_distance", "label": "Dolly", "target": "dolly_speed", "minimum": -0.2, "maximum": 0.2, "default": 0.0 } ],
+  "recommended_mappings": [ { "source": "bass", "target": "particle_size", "amount": 3.0, "offset": 2.0, "minimum": 1.0, "maximum": 6.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.03, "release_seconds": 0.25 } ]
+}

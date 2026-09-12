@@ -44,6 +44,15 @@ struct ParameterSchema {
     modulation_target: Option<&'static str>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TimelineAudio {
+    duration_seconds: f64,
+    waveform: Vec<[f32; 2]>,
+    transient_times: Vec<f64>,
+    beat_times: Vec<f64>,
+}
+
 #[tauri::command]
 async fn gpu_info() -> Result<GpuSummary, String> {
     let context = GpuContext::new(GpuConfig::default())
@@ -204,10 +213,39 @@ fn resolve_project_path(path: &std::path::Path) -> PathBuf {
 async fn load_preview_audio(
     path: PathBuf,
     viewport: State<'_, ViewportController>,
-) -> Result<(), String> {
+) -> Result<TimelineAudio, String> {
     let analysis =
         analyze_cached(path, AnalysisConfig::default()).map_err(|error| error.to_string())?;
-    viewport.set_audio(analysis)
+    let stride = analysis.waveform.len().div_ceil(4_096).max(1);
+    let waveform = analysis
+        .waveform
+        .chunks(stride)
+        .map(|chunk| {
+            chunk
+                .iter()
+                .fold([1.0_f32, -1.0_f32], |[minimum, maximum], bucket| {
+                    [minimum.min(bucket.minimum), maximum.max(bucket.maximum)]
+                })
+        })
+        .collect();
+    let transient_times = analysis
+        .frames
+        .windows(3)
+        .filter(|frames| {
+            frames[1].transient_strength >= 0.65
+                && frames[1].transient_strength > frames[0].transient_strength
+                && frames[1].transient_strength >= frames[2].transient_strength
+        })
+        .map(|frames| frames[1].time_seconds)
+        .collect();
+    let timeline = TimelineAudio {
+        duration_seconds: analysis.duration_seconds,
+        waveform,
+        transient_times,
+        beat_times: Vec::new(),
+    };
+    viewport.set_audio(analysis)?;
+    Ok(timeline)
 }
 
 #[tauri::command]

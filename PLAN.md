@@ -717,22 +717,26 @@ Add enough timeline functionality for music-video composition.
 
 ## Tasks
 
-- [ ] Render waveform
-- [ ] Display playback cursor
-- [ ] Add zoom
-- [ ] Add selection range
-- [ ] Add preview slice range
-- [ ] Display transient markers
-- [ ] Display beat markers when available
-- [ ] Add simple parameter automation tracks
-- [ ] Add camera automation track
-- [ ] Add scene marker support
+- [x] Render waveform
+- [x] Display playback cursor
+- [x] Add zoom
+- [x] Add selection range
+- [x] Add preview slice range
+- [x] Display transient markers
+- [x] Display beat markers when available
+  - Timeline accepts and renders beat markers; the current analysis version does not produce beat data yet.
+- [x] Add simple parameter automation tracks
+- [x] Add camera automation track
+- [x] Add scene marker support
 
 ## Acceptance Criteria
 
-- [ ] User can select a 5–10 second preview region
-- [ ] User can scrub audio and visuals together
-- [ ] Basic automation can be edited
+- [x] User can select a 5–10 second preview region
+  - Interactively validated in the Tauri editor.
+- [x] User can scrub audio and visuals together
+  - Canvas seeking and synchronized preview were interactively validated with audio.
+- [x] Basic automation can be edited
+  - Track/keyframe editing and deterministic preview evaluation were interactively validated.
 
 ---
 

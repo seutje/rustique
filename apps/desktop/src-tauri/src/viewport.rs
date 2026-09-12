@@ -9,7 +9,8 @@ use std::{
 
 use audio_engine::{AudioAnalysis, AudioFeatureFrame};
 use project_format::{
-    ActiveModulation, EnvelopeSmoother, ModulatedParameters, ProjectV1, evaluate_mappings,
+    ActiveModulation, EnvelopeSmoother, ModulatedParameters, ProjectV1, evaluate_automation,
+    evaluate_mappings,
 };
 use raw_window_handle::{
     RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
@@ -413,12 +414,16 @@ async fn render_loop(
             let features = analysis
                 .as_ref()
                 .map_or_else(AudioFeatureFrame::default, |value| value.sample_at(time));
-            let active = evaluate_mappings(
+            let mut active = evaluate_mappings(
                 &scene.project.modulation_mappings,
                 &mut scene.smoothers,
                 scene.project.apply_analysis_profile(features),
                 1.0 / scene.project.fps as f32,
             );
+            active.extend(evaluate_automation(
+                &scene.project.automation_tracks,
+                time as f32,
+            ));
             active_modulations = summarize_modulations(&active);
             let mut parameters = ModulatedParameters {
                 particle_size: scene.project.render_defaults.particle_size_pixels,

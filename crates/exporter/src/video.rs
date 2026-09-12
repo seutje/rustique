@@ -13,7 +13,8 @@ use std::{
 
 use audio_engine::AudioAnalysis;
 use project_format::{
-    EnvelopeSmoother, ModulatedParameters, ModulationTarget, ProjectV1, evaluate_mappings,
+    EnvelopeSmoother, ModulatedParameters, ModulationTarget, ProjectV1, evaluate_automation,
+    evaluate_mappings,
 };
 use render_core::{
     BenchmarkConfig, GpuContext, OffscreenRenderTarget, ParticleRenderer, PostProcessConfig,
@@ -152,12 +153,13 @@ pub fn export_video(
             return Err(ExportError::Cancelled);
         }
         let time = f64::from(frame) / f64::from(project.fps);
-        let active = evaluate_mappings(
+        let mut active = evaluate_mappings(
             &project.modulation_mappings,
             &mut smoothers,
             project.apply_analysis_profile(analysis.sample_at(time)),
             1.0 / project.fps as f32,
         );
+        active.extend(evaluate_automation(&project.automation_tracks, time as f32));
         let mut parameters = ModulatedParameters {
             particle_size: project.render_defaults.particle_size_pixels,
             ..ModulatedParameters::default()

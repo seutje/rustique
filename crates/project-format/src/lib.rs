@@ -1,6 +1,7 @@
 //! Versioned, renderer-independent Rustique project representation.
 
 mod audio_profile;
+mod automation;
 mod modulation;
 mod preset;
 
@@ -8,6 +9,7 @@ pub use audio_profile::{
     AnalysisProfileOverridesV1, AnalysisProfileSelectionV1, AnalysisProfileV1, FeatureWeightsV1,
     ReactionProfileOverridesV1, ReactionProfileSelectionV1, ReactionProfileV1,
 };
+pub use automation::{AutomationKeyframeV1, AutomationTrackV1, SceneMarkerV1, evaluate_automation};
 
 pub use modulation::{
     ActiveModulation, EnvelopeSmoother, ModulatedParameters, ModulationCurve, ModulationMapping,
@@ -42,6 +44,10 @@ pub struct ProjectV1 {
     pub render_defaults: RenderDefaultsV1,
     #[serde(default)]
     pub modulation_mappings: Vec<ModulationMapping>,
+    #[serde(default)]
+    pub automation_tracks: Vec<AutomationTrackV1>,
+    #[serde(default)]
+    pub scene_markers: Vec<SceneMarkerV1>,
     #[serde(default)]
     pub visual_preset: Option<PresetSelectionV1>,
     #[serde(default)]
@@ -467,6 +473,30 @@ impl ProjectV1 {
                 ));
             }
         }
+        for track in &self.automation_tracks {
+            if track.keyframes.iter().any(|keyframe| {
+                !keyframe.time_seconds.is_finite()
+                    || !keyframe.value.is_finite()
+                    || keyframe.time_seconds < 0.0
+                    || keyframe.time_seconds > self.duration_seconds
+            }) || track
+                .keyframes
+                .windows(2)
+                .any(|pair| pair[0].time_seconds >= pair[1].time_seconds)
+            {
+                return Err(ProjectError::Validation("automation keyframes must be finite, ordered, unique, and inside the project duration".into()));
+            }
+        }
+        if self.scene_markers.iter().any(|marker| {
+            marker.label.trim().is_empty()
+                || !marker.time_seconds.is_finite()
+                || marker.time_seconds < 0.0
+                || marker.time_seconds > self.duration_seconds
+        }) {
+            return Err(ProjectError::Validation(
+                "scene markers must have labels and times inside the project duration".into(),
+            ));
+        }
         Ok(())
     }
 
@@ -521,6 +551,8 @@ mod tests {
                 background: [0.0, 0.0, 0.0, 1.0],
             },
             modulation_mappings: Vec::new(),
+            automation_tracks: Vec::new(),
+            scene_markers: Vec::new(),
             visual_preset: None,
             analysis_profile: None,
             reaction_profile: None,

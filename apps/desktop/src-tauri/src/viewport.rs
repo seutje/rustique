@@ -321,7 +321,9 @@ async fn render_loop(
             Ok(PreviewCommand::Project(next)) => {
                 project = Some(*next);
                 scene = None;
-                frame = 0;
+                // Project edits rebuild GPU resources, but they must not act as
+                // transport controls. The new scene is replayed to the existing
+                // timeline frame when it is rendered below.
                 dirty = true;
             }
             Ok(PreviewCommand::Audio(next)) => {

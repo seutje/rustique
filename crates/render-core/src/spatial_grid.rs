@@ -5,7 +5,7 @@ use simulation::initialize_particles;
 use thiserror::Error;
 use wgpu::util::DeviceExt;
 
-use crate::GpuContext;
+use crate::{GpuContext, dispatch::dispatch_dimensions};
 
 const SHADER: &str = include_str!("../../../shaders/spatial/uniform_grid.wgsl");
 
@@ -304,7 +304,8 @@ impl SpatialGrid {
             });
             pass.set_pipeline(pipeline);
             pass.set_bind_group(0, &self.bind_group, &[]);
-            pass.dispatch_workgroups(items.div_ceil(256), 1, 1);
+            let (groups_x, groups_y) = dispatch_dimensions(items);
+            pass.dispatch_workgroups(groups_x, groups_y, 1);
         }
         let counts_bytes = u64::from(self.cell_count) * 4;
         let neighbors_bytes = u64::from(self.particle_count) * 4;

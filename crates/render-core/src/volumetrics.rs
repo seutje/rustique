@@ -3,7 +3,8 @@ use simulation::initialize_particles;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    GpuContext, OffscreenError, OffscreenRenderTarget, RgbaColor, post_process::HDR_FORMAT,
+    GpuContext, OffscreenError, OffscreenRenderTarget, RgbaColor, dispatch::dispatch_dimensions,
+    post_process::HDR_FORMAT,
 };
 use std::path::Path;
 
@@ -271,7 +272,8 @@ impl VolumetricRenderer {
             });
             pass.set_pipeline(pipeline);
             pass.set_bind_group(0, &self.bind_group, &[]);
-            pass.dispatch_workgroups(count.div_ceil(256), 1, 1);
+            let (groups_x, groups_y) = dispatch_dimensions(count);
+            pass.dispatch_workgroups(groups_x, groups_y, 1);
         }
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

@@ -1,4 +1,6 @@
-use crate::{GpuContext, OffscreenError, OffscreenRenderTarget, RgbaColor};
+use crate::{
+    GpuContext, OffscreenError, OffscreenRenderTarget, RgbaColor, dispatch::dispatch_dimensions,
+};
 use bytemuck::{Pod, Zeroable};
 use simulation::initialize_particles;
 use std::{path::Path, sync::mpsc, time::Instant};
@@ -383,7 +385,8 @@ impl FluidRenderer {
             });
             pass.set_pipeline(p);
             pass.set_bind_group(0, &self.groups[self.source], &[]);
-            pass.dispatch_workgroups(n.div_ceil(256), 1, 1);
+            let (groups_x, groups_y) = dispatch_dimensions(n);
+            pass.dispatch_workgroups(groups_x, groups_y, 1);
         }
         {
             let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {

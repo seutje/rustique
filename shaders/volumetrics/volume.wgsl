@@ -29,25 +29,31 @@ fn hash(value: u32) -> f32 {
     return f32((x >> 16u) ^ x) / 65535.0;
 }
 
+fn item_index(id: vec3<u32>) -> u32 {
+    return id.x + id.y * 65535u * 256u;
+}
+
 @compute @workgroup_size(256)
 fn clear_density(@builtin(global_invocation_id) id: vec3<u32>) {
+    let index = item_index(id);
     let count = settings.grid_size * settings.grid_size * settings.grid_size;
-    if (id.x < count) { atomicStore(&density[id.x], 0u); }
+    if (index < count) { atomicStore(&density[index], 0u); }
 }
 
 @compute @workgroup_size(256)
 fn splat_particles(@builtin(global_invocation_id) id: vec3<u32>) {
-    if (id.x >= settings.particle_count) { return; }
-    var p = particles[id.x].position_age.xyz;
+    let index = item_index(id);
+    if (index >= settings.particle_count) { return; }
+    var p = particles[index].position_age.xyz;
     // Deterministic, slow volume motion without wall-clock input.
     let angle = settings.time * 0.08 + p.y * 0.35;
     let rotated = vec2<f32>(p.x * cos(angle) - p.z * sin(angle), p.x * sin(angle) + p.z * cos(angle));
     p = vec3<f32>(rotated.x, p.y, rotated.y);
-    let jitter = vec3<f32>(hash(id.x), hash(id.x + 17u), hash(id.x + 41u)) - vec3<f32>(0.5);
+    let jitter = vec3<f32>(hash(index), hash(index + 17u), hash(index + 41u)) - vec3<f32>(0.5);
     let uvw = clamp(p * 0.32 + vec3<f32>(0.5) + jitter / f32(settings.grid_size), vec3<f32>(0.0), vec3<f32>(0.9999));
     let cell = vec3<u32>(uvw * f32(settings.grid_size));
-    let index = cell.x + settings.grid_size * (cell.y + settings.grid_size * cell.z);
-    atomicAdd(&density[index], 1u);
+    let voxel_index = cell.x + settings.grid_size * (cell.y + settings.grid_size * cell.z);
+    atomicAdd(&density[voxel_index], 1u);
 }
 
 struct VertexOutput {

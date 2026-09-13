@@ -1,6 +1,7 @@
 //! Shared, window-independent rendering infrastructure.
 
 mod camera;
+mod dispatch;
 mod fluid;
 mod gpu;
 mod layers;

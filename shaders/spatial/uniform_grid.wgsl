@@ -27,9 +27,13 @@ fn cell_index(cell: vec3<u32>) -> u32 {
     return cell.x + params.cells_per_axis * (cell.y + params.cells_per_axis * cell.z);
 }
 
+fn item_index(id: vec3<u32>) -> u32 {
+    return id.x + id.y * 65535u * 256u;
+}
+
 @compute @workgroup_size(256)
 fn clear(@builtin(global_invocation_id) id: vec3<u32>) {
-    let index = id.x;
+    let index = item_index(id);
     let cell_count = params.cells_per_axis * params.cells_per_axis * params.cells_per_axis;
     if (index < cell_count) { atomicStore(&cell_counts[index], 0u); }
     if (index < params.particle_count) { neighbor_counts[index] = 0u; }
@@ -38,7 +42,7 @@ fn clear(@builtin(global_invocation_id) id: vec3<u32>) {
 
 @compute @workgroup_size(256)
 fn build(@builtin(global_invocation_id) id: vec3<u32>) {
-    let particle = id.x;
+    let particle = item_index(id);
     if (particle >= params.particle_count) { return; }
     let cell = cell_index(cell_coord(positions[particle].value.xyz));
     let slot = atomicAdd(&cell_counts[cell], 1u);
@@ -51,7 +55,7 @@ fn build(@builtin(global_invocation_id) id: vec3<u32>) {
 
 @compute @workgroup_size(256)
 fn query(@builtin(global_invocation_id) id: vec3<u32>) {
-    let particle = id.x;
+    let particle = item_index(id);
     if (particle >= params.particle_count) { return; }
     let position = positions[particle].value.xyz;
     let center = vec3<i32>(cell_coord(position));

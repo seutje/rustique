@@ -6,7 +6,8 @@ use thiserror::Error;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    GpuContext, OffscreenError, OffscreenRenderTarget, RgbaColor, post_process::HDR_FORMAT,
+    GpuContext, OffscreenError, OffscreenRenderTarget, RgbaColor, dispatch::dispatch_dimensions,
+    post_process::HDR_FORMAT,
 };
 
 const PARTICLE_SHADER: &str = include_str!("../../../shaders/particles/particles.wgsl");
@@ -725,12 +726,6 @@ fn storage_entry(
         },
         count: None,
     }
-}
-
-fn dispatch_dimensions(particle_count: u32) -> (u32, u32) {
-    let groups = particle_count.div_ceil(256);
-    let groups_x = groups.min(65_535);
-    (groups_x, groups.div_ceil(groups_x))
 }
 
 fn seed_u32(seed: u64) -> u32 {

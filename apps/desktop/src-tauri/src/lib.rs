@@ -8,7 +8,6 @@ use project_format::{
     randomize_preset_macros,
 };
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use render_core::{GpuConfig, GpuContext};
 use serde::Serialize;
 use tauri::{Manager, State};
 
@@ -22,16 +21,7 @@ use production::{ProductionQueue, ProductionSettings, ProductionStatus};
 #[cfg(target_os = "windows")]
 mod viewport;
 #[cfg(target_os = "windows")]
-use viewport::{PreviewQuality, PreviewStats, ViewportController};
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct GpuSummary {
-    adapter: String,
-    backend: String,
-    device_type: String,
-    driver: String,
-}
+use viewport::{HardwareScan, PreviewQuality, PreviewStats, ViewportController};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -64,17 +54,8 @@ struct TimelineAudio {
 }
 
 #[tauri::command]
-async fn gpu_info() -> Result<GpuSummary, String> {
-    let context = GpuContext::new(GpuConfig::default())
-        .await
-        .map_err(|error| format!("failed to query GPU: {error}"))?;
-    let info = context.info();
-    Ok(GpuSummary {
-        adapter: info.adapter.name,
-        backend: format!("{:?}", info.adapter.backend),
-        device_type: format!("{:?}", info.adapter.device_type),
-        driver: info.adapter.driver,
-    })
+fn gpu_info(viewport: State<'_, ViewportController>) -> Result<HardwareScan, String> {
+    viewport.hardware_scan()
 }
 
 #[tauri::command]

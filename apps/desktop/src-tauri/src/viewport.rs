@@ -2,7 +2,7 @@
 
 use std::{
     num::{NonZeroIsize, NonZeroU32},
-    sync::{Arc, Mutex, mpsc},
+    sync::{Arc, Condvar, Mutex, mpsc},
     thread,
     time::{Duration, Instant},
 };
@@ -54,6 +54,20 @@ pub struct ActiveModulationSummary {
     pub output_value: f32,
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HardwareScan {
+    pub adapter: String,
+    pub backend: String,
+    pub device_type: String,
+    pub driver: String,
+    pub max_preview_particles: u32,
+    pub benchmark_gpu_ms: Option<f64>,
+    pub benchmark_particles: u32,
+}
+
+type HardwareScanState = Arc<(Mutex<Option<Result<HardwareScan, String>>>, Condvar)>;
+
 #[derive(Clone, Copy, Debug)]
 pub enum PreviewQuality {
     Draft,
@@ -62,12 +76,13 @@ pub enum PreviewQuality {
 }
 
 impl PreviewQuality {
-    fn particle_count(self, project_count: u32) -> u32 {
+    fn particle_count(self, project_count: u32, hardware_limit: u32) -> u32 {
         match self {
             Self::Draft => project_count.min(100_000),
             Self::Preview => project_count.min(500_000),
             Self::Final => project_count,
         }
+        .min(hardware_limit)
     }
 
     const fn post_quality(self) -> PostProcessQuality {
@@ -94,6 +109,7 @@ pub struct ViewportController {
     hwnd: isize,
     sender: mpsc::Sender<PreviewCommand>,
     stats: Arc<Mutex<PreviewStats>>,
+    hardware_scan: HardwareScanState,
     render_thread: Option<thread::JoinHandle<()>>,
 }
 
@@ -127,14 +143,17 @@ impl ViewportController {
         let (sender, receiver) = mpsc::channel();
         let stats = Arc::new(Mutex::new(PreviewStats::default()));
         let thread_stats = Arc::clone(&stats);
+        let hardware_scan = Arc::new((Mutex::new(None), Condvar::new()));
+        let thread_hardware_scan = Arc::clone(&hardware_scan);
         let render_thread = thread::Builder::new()
             .name("rustique-preview".into())
-            .spawn(move || run_render_thread(hwnd, receiver, thread_stats))
+            .spawn(move || run_render_thread(hwnd, receiver, thread_stats, thread_hardware_scan))
             .map_err(|error| format!("failed to start viewport render thread: {error}"))?;
         Ok(Self {
             hwnd,
             sender,
             stats,
+            hardware_scan,
             render_thread: Some(render_thread),
         })
     }
@@ -206,6 +225,18 @@ impl ViewportController {
             .map_err(|_| "preview statistics lock is poisoned".into())
     }
 
+    pub fn hardware_scan(&self) -> Result<HardwareScan, String> {
+        let (scan, ready) = &*self.hardware_scan;
+        let guard = scan.lock().map_err(|_| "hardware scan lock is poisoned")?;
+        let (guard, _) = ready
+            .wait_timeout_while(guard, Duration::from_secs(15), |value| value.is_none())
+            .map_err(|_| "hardware scan lock is poisoned")?;
+        match guard.clone() {
+            Some(result) => result,
+            None => Err("hardware scan timed out".to_owned()),
+        }
+    }
+
     fn send(&self, command: PreviewCommand) -> Result<(), String> {
         self.sender
             .send(command)
@@ -237,8 +268,9 @@ fn run_render_thread(
     hwnd: isize,
     receiver: mpsc::Receiver<PreviewCommand>,
     stats: Arc<Mutex<PreviewStats>>,
+    hardware_scan: HardwareScanState,
 ) {
-    if let Err(error) = pollster::block_on(render_loop(hwnd, receiver, stats)) {
+    if let Err(error) = pollster::block_on(render_loop(hwnd, receiver, stats, hardware_scan)) {
         eprintln!("viewport renderer stopped: {error}");
     }
 }
@@ -252,10 +284,18 @@ async fn render_loop(
     hwnd: isize,
     receiver: mpsc::Receiver<PreviewCommand>,
     stats: Arc<Mutex<PreviewStats>>,
+    hardware_scan_state: HardwareScanState,
 ) -> Result<(), String> {
-    let context = GpuContext::new(GpuConfig::default())
-        .await
-        .map_err(|error| error.to_string())?;
+    let context = match GpuContext::new(GpuConfig::default()).await {
+        Ok(context) => context,
+        Err(error) => {
+            publish_hardware_scan(&hardware_scan_state, Err(error.to_string()));
+            return Err(error.to_string());
+        }
+    };
+    let hardware_scan = scan_hardware(&context);
+    let hardware_limit = hardware_scan.max_preview_particles;
+    publish_hardware_scan(&hardware_scan_state, Ok(hardware_scan));
     let raw_window_handle = RawWindowHandle::Win32(Win32WindowHandle::new(
         NonZeroIsize::new(hwnd).ok_or("native viewport HWND is null")?,
     ));
@@ -359,7 +399,9 @@ async fn render_loop(
         }
         if scene.is_none() {
             if let Some(project) = project.clone() {
-                let count = quality.particle_count(project.particle_system.count).max(1);
+                let count = quality
+                    .particle_count(project.particle_system.count, hardware_limit)
+                    .max(1);
                 let mut renderer = ParticleRenderer::new(&context, count, project.seed)
                     .map_err(|error| error.to_string())?;
                 renderer
@@ -530,6 +572,83 @@ async fn render_loop(
         }
     }
     Ok(())
+}
+
+fn publish_hardware_scan(
+    state: &(Mutex<Option<Result<HardwareScan, String>>>, Condvar),
+    result: Result<HardwareScan, String>,
+) {
+    let (scan, ready) = state;
+    if let Ok(mut value) = scan.lock() {
+        *value = Some(result);
+        ready.notify_all();
+    }
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn scan_hardware(context: &GpuContext) -> HardwareScan {
+    const BENCHMARK_PARTICLES: u32 = 100_000;
+    const PARTICLE_BYTES: u64 = 64;
+    let info = context.info();
+    let adapter_ceiling = match info.adapter.device_type {
+        wgpu::DeviceType::DiscreteGpu => 2_000_000,
+        wgpu::DeviceType::IntegratedGpu => 750_000,
+        wgpu::DeviceType::VirtualGpu => 350_000,
+        wgpu::DeviceType::Cpu | wgpu::DeviceType::Other => 100_000,
+    };
+    // Each of the two resident particle buffers must fit one storage binding.
+    // Keep a 25% reserve for future per-particle data. wgpu does not expose
+    // total VRAM portably.
+    let buffer_ceiling = ((u64::from(info.limits.max_storage_buffer_binding_size) * 3 / 4)
+        / PARTICLE_BYTES)
+        .min(u64::from(u32::MAX)) as u32;
+    let benchmark = (|| -> Result<Option<f64>, ()> {
+        let target = OffscreenRenderTarget::new(context, 1280, 720).map_err(|_| ())?;
+        let mut renderer =
+            ParticleRenderer::new(context, BENCHMARK_PARTICLES, 1).map_err(|_| ())?;
+        let mut samples = Vec::with_capacity(3);
+        for frame in 0..3 {
+            let timing = renderer
+                .benchmark_frame(context, &target, frame, 60.0, BenchmarkConfig::default())
+                .map_err(|_| ())?;
+            if let (Some(compute), Some(render)) = (timing.gpu_compute_ms, timing.gpu_render_ms) {
+                samples.push(compute + render);
+            }
+        }
+        samples.sort_by(f64::total_cmp);
+        Ok(samples.get(samples.len() / 2).copied())
+    })()
+    .ok()
+    .flatten();
+    // Leave roughly 4.7 ms of a 60 Hz frame for post-processing, presentation,
+    // and editor overhead. Adapter ceilings prevent optimistic extrapolation.
+    let measured_ceiling = benchmark.map_or(adapter_ceiling, |gpu_ms| {
+        if gpu_ms <= f64::EPSILON {
+            adapter_ceiling
+        } else {
+            ((f64::from(BENCHMARK_PARTICLES) * 12.0 / gpu_ms) as u32)
+                .max(50_000)
+                .min(adapter_ceiling)
+        }
+    });
+    let raw_ceiling = measured_ceiling.min(buffer_ceiling).max(1);
+    let max_preview_particles = if raw_ceiling >= 10_000 {
+        raw_ceiling.div_euclid(10_000) * 10_000
+    } else {
+        raw_ceiling
+    };
+    eprintln!(
+        "hardware scan selected a {max_preview_particles} particle interactive preview cap (benchmark: {benchmark:?} ms)"
+    );
+    HardwareScan {
+        adapter: info.adapter.name,
+        backend: format!("{:?}", info.adapter.backend),
+        device_type: format!("{:?}", info.adapter.device_type),
+        driver: info.adapter.driver,
+        max_preview_particles,
+        benchmark_gpu_ms: benchmark,
+        benchmark_particles: BENCHMARK_PARTICLES,
+    }
 }
 
 fn summarize_modulations(active: &[ActiveModulation]) -> Vec<ActiveModulationSummary> {

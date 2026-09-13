@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { EditorProject, ProjectData } from "./store";
-export interface GpuSummary { adapter: string; backend: string; deviceType: string; driver: string; }
+export interface GpuSummary { adapter: string; backend: string; deviceType: string; driver: string; maxPreviewParticles: number; benchmarkGpuMs: number | null; benchmarkParticles: number; }
 export interface ActiveModulation { target: string; sourceValue: number; outputValue: number; }
 export interface PreviewStats { frameIndex: number; framesPerSecond: number; frameTimeMs: number; particleCount: number; gpuComputeMs: number | null; gpuRenderMs: number | null; playing: boolean; activeModulations: ActiveModulation[]; }
 export interface TimelineAudio { durationSeconds: number; waveform: [number, number][]; transientTimes: number[]; beatTimes: number[]; }

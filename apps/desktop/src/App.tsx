@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { Inspector } from "./Inspector";
 import { Timeline } from "./Timeline";
 import {
@@ -102,6 +103,22 @@ export function App() {
     const loaded = await loadProject(projectPath);
     setDocument(loaded); setProjectPath(loaded.path);
   }
+  async function browseProject() {
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: "Rustique project", extensions: ["json"] }],
+    });
+    if (selected) setProjectPath(selected);
+  }
+  async function browseAudio() {
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: "Audio", extensions: ["wav", "mp3", "flac", "m4a", "aac", "mp4"] }],
+    });
+    if (selected) setAudioPath(selected);
+  }
   async function saveCurrentProject() {
     if (!document) return;
     previewUpdateGeneration.current += 1;
@@ -126,7 +143,7 @@ export function App() {
         <h2 className="creative-heading">Creative tools</h2><label>Mutation amount <output>{mutationAmount.toFixed(2)}</output></label><input type="range" min="0" max="1" step="0.01" value={mutationAmount} onChange={(e) => setMutationAmount(Number(e.target.value))}/><button disabled={!project} onClick={() => project && void run(async () => { const next = variation + 1; setVariation(next); edit(await randomizeProject(document?.path ?? projectPath, project, mutationAmount, next)); })}>Randomize variation</button>
         <label>Morph from</label><select value={morphFrom} onChange={(e) => setMorphFrom(e.target.value)}>{presets.map((name) => <option key={name}>{name}</option>)}</select><label>Morph to</label><select value={morphTo} onChange={(e) => setMorphTo(e.target.value)}>{presets.map((name) => <option key={name}>{name}</option>)}</select><label>Morph <output>{morphAmount.toFixed(2)}</output></label><input type="range" min="0" max="1" step="0.01" value={morphAmount} onChange={(e) => setMorphAmount(Number(e.target.value))}/><button disabled={!project} onClick={() => project && void run(async () => edit(await morphProject(project, presetFiles[morphFrom], presetFiles[morphTo], morphAmount)))}>Apply morph</button><button disabled={!project} onClick={() => project && void run(async () => edit(await makeSeamlessLoop(project)))}>Make camera loop</button>
       </aside>
-      <aside className="panel inspector"><h2>Inspector</h2><label>Project path</label><input value={projectPath} onChange={(e) => setProjectPath(e.target.value)} /><div className="button-row"><button onClick={() => void run(openProject)}>Load</button><button disabled={!project} onClick={() => void run(saveCurrentProject)}>Save</button></div><label>Preview audio</label><input value={audioPath} placeholder="C:\\music\\track.wav" onChange={(e) => setAudioPath(e.target.value)} /><button onClick={() => void run(loadAudio)} disabled={!audioPath || !project}>Load audio</button><label>Preview quality</label><select defaultValue="preview" onChange={(e) => void setPreviewQuality(e.target.value)}><option value="draft">Draft · 100K</option><option value="preview">Preview · 500K</option><option value="final">Final count</option></select>{project && document && <Inspector project={project} schema={document.parameters} macros={document.macros} active={stats?.activeModulations ?? []} onChange={edit} />}{gpu && <dl><dt>GPU</dt><dd>{gpu.adapter}</dd><dt>Backend</dt><dd>{gpu.backend}</dd><dt>Driver</dt><dd>{gpu.driver}</dd></dl>}{error && <p className="error">{error}</p>}</aside>
+      <aside className="panel inspector"><h2>Inspector</h2><label>Project path</label><div className="path-input"><input value={projectPath} onChange={(e) => setProjectPath(e.target.value)} /><button onClick={() => void run(browseProject)}>Browse</button></div><div className="button-row"><button onClick={() => void run(openProject)}>Load</button><button disabled={!project} onClick={() => void run(saveCurrentProject)}>Save</button></div><label>Preview audio</label><div className="path-input"><input value={audioPath} placeholder="C:\\music\\track.wav" onChange={(e) => setAudioPath(e.target.value)} /><button onClick={() => void run(browseAudio)}>Browse</button></div><button onClick={() => void run(loadAudio)} disabled={!audioPath || !project}>Load audio</button><label>Preview quality</label><select defaultValue="preview" onChange={(e) => void setPreviewQuality(e.target.value)}><option value="draft">Draft · 100K</option><option value="preview">Preview · 500K</option><option value="final">Final count</option></select>{project && document && <Inspector project={project} schema={document.parameters} macros={document.macros} active={stats?.activeModulations ?? []} onChange={edit} />}{gpu && <dl><dt>GPU</dt><dd>{gpu.adapter}</dd><dt>Backend</dt><dd>{gpu.backend}</dd><dt>Driver</dt><dd>{gpu.driver}</dd></dl>}{error && <p className="error">{error}</p>}</aside>
       <section className="viewport"><div className="viewport-grid" ref={viewportRef}/><div className="transport"><button onClick={() => void resetPreview()}>Reset</button><button className={stats?.playing ? "playing" : ""} onClick={() => void setPreviewPlaying(!(stats?.playing ?? false))}>{stats?.playing ? "Pause" : "Play"}</button><span>frame {stats?.frameIndex ?? 0} / {lastFrame}</span><span>{project ? ((stats?.frameIndex ?? 0) / project.fps).toFixed(2) : "0.00"}s</span><span>{stats?.framesPerSecond.toFixed(1) ?? "0.0"} fps</span><span>{stats?.particleCount.toLocaleString() ?? 0} particles</span><span>GPU {stats?.gpuRenderMs?.toFixed(2) ?? "—"} ms</span></div></section>
       <section className="panel timeline"><h2>Audio & timeline</h2><Timeline project={project ?? null} audio={timelineAudio} cursorSeconds={project ? (stats?.frameIndex ?? 0) / project.fps : 0} onSeek={(seconds) => project && void seekPreview(Math.round(seconds * project.fps))} onProjectChange={edit} onSliceChange={setSliceRange}/></section>
     </> : <ExportPanel project={project} audioPath={audioPath} stats={stats} sliceRange={sliceRange} previewJobs={previewJobs} production={production} productionStatus={productionStatus} useFinalSliceSettings={useFinalSliceSettings} setProduction={setProduction} setPreviewJobs={setPreviewJobs} setUseFinalSliceSettings={setUseFinalSliceSettings} run={run}/>} {view === "exporter" && error && <p className="global-error error">{error}</p>}

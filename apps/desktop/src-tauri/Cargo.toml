@@ -25,6 +25,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 simulation = { path = "../../../crates/simulation" }
 tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 wgpu = "24"
 windows = { version = "0.61", features = [

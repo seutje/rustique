@@ -439,6 +439,7 @@ fn live_input_values(input: State<'_, LiveInputController>) -> Result<Vec<LiveIn
 /// Panics when Tauri cannot initialize or run the application.
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let window = app
                 .get_webview_window("main")

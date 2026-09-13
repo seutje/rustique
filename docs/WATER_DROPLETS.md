@@ -8,9 +8,12 @@ validated by `project-format`; `size` must be positive, variation and emission a
 
 Droplets are procedurally instanced in screen-space cells. Their seeded size and
 fall speed are stable, and their vertical position uses `frame / fps`, so a frame
-does not depend on render history or wall-clock time. `render_frame` accepts an
-additional emission modulation value intended for the existing `burst_emission`
-audio target. The condensation preset recommends transient-driven emission.
+does not depend on render history or wall-clock time. The modulated render path
+accepts emission changes from the existing `burst_emission` audio target.
+`droplet_density`, `droplet_size`, `droplet_refraction`, and
+`droplet_gravity` provide additional multiplicative audio controls, while
+`brightness` controls the complete shaded result. The condensation preset uses
+separate transient, spectral, bass, high-frequency, and loudness responses.
 
 Render the example at two moments:
 

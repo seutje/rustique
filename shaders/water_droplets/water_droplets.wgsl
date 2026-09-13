@@ -59,7 +59,7 @@ fn background(uv: vec2<f32>) -> vec3<f32> {
         }
     }
 
-    if best >= 1. { return vec4(background(i.uv), 1.); }
+    if best >= 1. { return vec4(background(i.uv) * params.background.w, 1.); }
     let sphere_z = sqrt(max(0., 1. - dot(local_best, local_best)));
     let normal = normalize(vec3(local_best, sphere_z));
     let distortion = normal.xy * params.appearance.w * (0.6 + radius_best);
@@ -68,5 +68,5 @@ fn background(uv: vec2<f32>) -> vec3<f32> {
     let rim = smoothstep(.72, 1., best);
     let highlight = pow(max(dot(normal, normalize(vec3(-.4, -.7, 1.))), 0.), 48.);
     let color = refracted * mix(.88, 1.12, sphere_z) + vec3(.5, .82, 1.) * fresnel + vec3(1.) * highlight * 1.8 + rim * vec3(.08, .18, .24);
-    return vec4(color, 1.);
+    return vec4(color * params.background.w, 1.);
 }

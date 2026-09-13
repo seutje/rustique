@@ -224,6 +224,11 @@ mod tests {
         assert_eq!(presets.len(), 5);
         assert_ne!(presets[0].forces, presets[1].forces);
         assert_ne!(presets[1].render_defaults, presets[2].render_defaults);
+        assert!(
+            presets
+                .iter()
+                .all(|preset| preset.recommended_mappings.len() >= 3)
+        );
     }
 
     #[test]

@@ -20,6 +20,29 @@ pub struct WaterDropletConfig {
     pub emission: f32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WaterDropletModulation {
+    pub emission: f32,
+    pub density: f32,
+    pub size: f32,
+    pub refraction: f32,
+    pub gravity: f32,
+    pub brightness: f32,
+}
+
+impl Default for WaterDropletModulation {
+    fn default() -> Self {
+        Self {
+            emission: 0.0,
+            density: 1.0,
+            size: 1.0,
+            refraction: 1.0,
+            gravity: 1.0,
+            brightness: 1.0,
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum WaterDropletError {
     #[error(transparent)]
@@ -141,6 +164,30 @@ impl WaterDropletRenderer {
         emission_modulation: f32,
         clear: RgbaColor,
     ) -> Result<Vec<u8>, WaterDropletError> {
+        self.render_frame_modulated(
+            ctx,
+            target,
+            time,
+            WaterDropletModulation {
+                emission: emission_modulation,
+                ..WaterDropletModulation::default()
+            },
+            clear,
+        )
+    }
+
+    /// Renders a frame with deterministic per-frame audio modulation.
+    ///
+    /// # Errors
+    /// Returns an error if GPU readback fails.
+    pub fn render_frame_modulated(
+        &self,
+        ctx: &GpuContext,
+        target: &OffscreenRenderTarget,
+        time: f32,
+        modulation: WaterDropletModulation,
+        clear: RgbaColor,
+    ) -> Result<Vec<u8>, WaterDropletError> {
         let started = Instant::now();
         ctx.queue.write_buffer(
             &self.params,
@@ -148,22 +195,22 @@ impl WaterDropletRenderer {
             bytemuck::bytes_of(&Params {
                 resolution_time: [self.width as f32, self.height as f32, time, 0.0],
                 appearance: [
-                    self.config.density,
-                    self.config.size,
+                    (self.config.density * modulation.density).clamp(0.0, 1.0),
+                    (self.config.size * modulation.size).max(0.01),
                     self.config.size_variation,
-                    self.config.refraction_strength,
+                    (self.config.refraction_strength * modulation.refraction).max(0.0),
                 ],
                 motion: [
                     self.config.fresnel_strength,
-                    self.config.gravity,
-                    (self.config.emission + emission_modulation).clamp(0.0, 1.0),
+                    (self.config.gravity * modulation.gravity).max(0.0),
+                    (self.config.emission + modulation.emission).clamp(0.0, 1.0),
                     self.config.seed as f32,
                 ],
                 background: [
                     clear.red as f32,
                     clear.green as f32,
                     clear.blue as f32,
-                    clear.alpha as f32,
+                    modulation.brightness.max(0.0),
                 ],
             }),
         );

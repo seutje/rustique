@@ -1,11 +1,18 @@
 {
   "preset_version": 1, "id": "water-droplets", "display_name": "Water Droplets", "description": "Refractive condensation with gravity-driven surface motion",
   "render_mode": "water_droplets",
-  "water_droplets": { "density": 0.78, "size": 0.31, "size_variation": 0.72, "refraction_strength": 0.075, "fresnel_strength": 1.15, "gravity": 0.11, "emission": 0.72 },
+  "water_droplets": { "density": 0.72, "size": 0.31, "size_variation": 0.72, "refraction_strength": 0.075, "fresnel_strength": 1.15, "gravity": 0.11, "emission": 0.3 },
   "particle_system": { "count": 90000, "substeps": 2, "emitter": { "type": "continuous", "particles_per_second": 12000.0, "respawn": "loop" } },
   "forces": [ { "type": "gravity", "acceleration": [0.0, -0.18, 0.0] }, { "type": "point_repulsor", "position": [0.0, -0.8, 0.0], "strength": 0.08 }, { "type": "drag", "coefficient": 0.015 } ],
   "camera": { "position": [0.0, 0.0, 3.2], "target": [0.0, -0.1, 0.0], "vertical_fov_degrees": 48.0, "mode": "static", "drift_amplitude": [0.02, 0.01, 0.02], "fov_modulation_degrees": 3.0 },
   "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 2.8, "background": [0.0, 0.008, 0.02, 1.0] },
   "macros": [ { "id": "droplet_size", "label": "Droplet Size", "target": "particle_size", "minimum": 1.0, "maximum": 8.0, "default": 2.8 }, { "id": "gravity", "label": "Gravity", "target": "force_strength_scale", "minimum": 0.2, "maximum": 3.0, "default": 1.0 } ],
-  "recommended_mappings": [ { "source": "transient", "target": "burst_emission", "amount": 0.28, "offset": 0.0, "minimum": 0.0, "maximum": 0.28, "polarity": "normal", "curve": "linear", "attack_seconds": 0.01, "release_seconds": 0.2 } ]
+  "recommended_mappings": [
+    { "source": "transient", "target": "burst_emission", "amount": 0.68, "offset": 0.0, "minimum": 0.0, "maximum": 0.68, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.005, "release_seconds": 0.16 },
+    { "source": "spectral_flux", "target": "droplet_density", "amount": 0.85, "offset": 0.55, "minimum": 0.55, "maximum": 1.4, "polarity": "normal", "curve": "linear", "attack_seconds": 0.02, "release_seconds": 0.28 },
+    { "source": "bass", "target": "droplet_size", "amount": 0.9, "offset": 0.7, "minimum": 0.7, "maximum": 1.6, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.025, "release_seconds": 0.3 },
+    { "source": "highs", "target": "droplet_refraction", "amount": 1.5, "offset": 0.55, "minimum": 0.55, "maximum": 2.05, "polarity": "normal", "curve": "linear", "attack_seconds": 0.015, "release_seconds": 0.18 },
+    { "source": "low_mids", "target": "droplet_gravity", "amount": 2.0, "offset": 0.35, "minimum": 0.35, "maximum": 2.35, "polarity": "normal", "curve": "linear", "attack_seconds": 0.05, "release_seconds": 0.4 },
+    { "source": "rms", "target": "brightness", "amount": 1.15, "offset": 0.65, "minimum": 0.65, "maximum": 1.8, "polarity": "normal", "curve": "linear", "attack_seconds": 0.04, "release_seconds": 0.3 }
+  ]
 }

@@ -15,7 +15,8 @@ struct VolumeUniforms {
     absorption: f32,
     emission: f32,
     dimensions: vec2<f32>,
-    padding: vec2<u32>,
+    motion_scale: f32,
+    padding: u32,
 };
 
 @group(0) @binding(0) var<storage, read> particles: array<Particle>;
@@ -46,7 +47,7 @@ fn splat_particles(@builtin(global_invocation_id) id: vec3<u32>) {
     if (index >= settings.particle_count) { return; }
     var p = particles[index].position_age.xyz;
     // Deterministic, slow volume motion without wall-clock input.
-    let angle = settings.time * 0.08 + p.y * 0.35;
+    let angle = settings.time * 0.08 * settings.motion_scale + p.y * 0.35;
     let rotated = vec2<f32>(p.x * cos(angle) - p.z * sin(angle), p.x * sin(angle) + p.z * cos(angle));
     p = vec3<f32>(rotated.x, p.y, rotated.y);
     let jitter = vec3<f32>(hash(index), hash(index + 17u), hash(index + 41u)) - vec3<f32>(0.5);
@@ -74,7 +75,7 @@ fn fullscreen(@builtin(vertex_index) index: u32) -> VertexOutput {
 fn sample_density(p: vec3<f32>) -> f32 {
     let cell = min(vec3<u32>(clamp(p, vec3<f32>(0.0), vec3<f32>(0.9999)) * f32(settings.grid_size)), vec3<u32>(settings.grid_size - 1u));
     let index = cell.x + settings.grid_size * (cell.y + settings.grid_size * cell.z);
-    return f32(atomicLoad(&density[index])) * settings.density_scale;
+    return min(f32(atomicLoad(&density[index])) * 0.02, 0.08);
 }
 
 @fragment
@@ -88,9 +89,9 @@ fn raymarch(input: VertexOutput) -> @location(0) vec4<f32> {
         let z = (f32(step) + 0.5) * step_length;
         let p = vec3<f32>((uv - vec2<f32>(0.5)) * vec2<f32>(1.5, 2.4), (z - 0.5) * 2.0);
         let envelope = max(0.0, 1.0 - dot(p, p));
-        let wisps = 0.55 + 0.45 * sin(p.x * 17.0 + p.z * 9.0 + settings.time * 0.3) * sin(p.y * 13.0 - p.z * 7.0);
-        let particle_density = min(sample_density(vec3<f32>(uv, z)), 0.08);
-        let d = particle_density * envelope + envelope * envelope * max(wisps, 0.0) * 0.45;
+        let wisps = 0.55 + 0.45 * sin(p.x * 17.0 + p.z * 9.0 + settings.time * 0.3 * settings.motion_scale) * sin(p.y * 13.0 - p.z * 7.0);
+        let particle_density = sample_density(vec3<f32>(uv, z));
+        let d = (particle_density * envelope + envelope * envelope * max(wisps, 0.0) * 0.45) * settings.density_scale;
         let absorbed = 1.0 - exp(-d * settings.absorption * step_length);
         let color = mix(vec3<f32>(0.08, 0.02, 0.28), vec3<f32>(0.15, 0.65, 1.4), z);
         radiance += transmittance * absorbed * color * settings.emission;

@@ -18,8 +18,9 @@ use project_format::{
 };
 use render_core::{
     BenchmarkConfig, GpuContext, LiquidChromeConfig, LiquidChromeRenderer, OffscreenRenderTarget,
-    ParticleRenderer, PostProcessConfig, RgbaColor, VolumetricConfig, VolumetricQuality,
-    VolumetricRenderer, WaterDropletConfig, WaterDropletRenderer,
+    ParticleRenderer, PostProcessConfig, RgbaColor, VolumetricConfig, VolumetricModulation,
+    VolumetricQuality, VolumetricRenderer, WaterDropletConfig, WaterDropletModulation,
+    WaterDropletRenderer,
 };
 use simulation::SimulationTiming;
 
@@ -236,11 +237,18 @@ pub fn export_video(
         let clear = RgbaColor::new(background[0], background[1], background[2], background[3]);
         let result = if let Some(droplets) = &droplets {
             droplets
-                .render_frame(
+                .render_frame_modulated(
                     context,
                     &target,
                     time as f32,
-                    parameters.burst_emission,
+                    WaterDropletModulation {
+                        emission: parameters.burst_emission,
+                        density: parameters.droplet_density,
+                        size: parameters.droplet_size,
+                        refraction: parameters.droplet_refraction,
+                        gravity: parameters.droplet_gravity,
+                        brightness: parameters.brightness,
+                    },
                     clear,
                 )
                 .map_err(ExportError::from)
@@ -258,7 +266,18 @@ pub fn export_video(
                 .map_err(ExportError::from)
         } else if let Some(volume) = &volume {
             volume
-                .render_frame(context, &target, frame, project.fps, clear)
+                .render_frame_modulated(
+                    context,
+                    &target,
+                    frame,
+                    project.fps,
+                    VolumetricModulation {
+                        density: parameters.volume_density,
+                        emission: parameters.brightness,
+                        motion: parameters.volume_motion,
+                    },
+                    clear,
+                )
                 .map_err(ExportError::from)
         } else if let Some(renderer) = &mut renderer {
             renderer

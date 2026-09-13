@@ -28,6 +28,23 @@ pub struct VolumetricConfig {
     pub emission: f32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VolumetricModulation {
+    pub density: f32,
+    pub emission: f32,
+    pub motion: f32,
+}
+
+impl Default for VolumetricModulation {
+    fn default() -> Self {
+        Self {
+            density: 1.0,
+            emission: 1.0,
+            motion: 1.0,
+        }
+    }
+}
+
 impl VolumetricConfig {
     #[must_use]
     pub const fn for_quality(quality: VolumetricQuality) -> Self {
@@ -78,7 +95,8 @@ struct Uniforms {
     absorption: f32,
     emission: f32,
     dimensions: [f32; 2],
-    padding: [u32; 2],
+    motion_scale: f32,
+    padding: u32,
 }
 
 pub struct VolumetricRenderer {
@@ -241,6 +259,30 @@ impl VolumetricRenderer {
         fps: u32,
         clear: RgbaColor,
     ) -> Result<Vec<u8>, OffscreenError> {
+        self.render_frame_modulated(
+            context,
+            target,
+            frame,
+            fps,
+            VolumetricModulation::default(),
+            clear,
+        )
+    }
+
+    /// Renders a frame with deterministic per-frame audio modulation.
+    ///
+    /// # Errors
+    /// Returns an error if GPU readback fails.
+    #[allow(clippy::cast_precision_loss)]
+    pub fn render_frame_modulated(
+        &self,
+        context: &GpuContext,
+        target: &OffscreenRenderTarget,
+        frame: u32,
+        fps: u32,
+        modulation: VolumetricModulation,
+        clear: RgbaColor,
+    ) -> Result<Vec<u8>, OffscreenError> {
         let dimensions = target.dimensions();
         let values = Uniforms {
             grid_size: self.config.grid_size,
@@ -248,11 +290,12 @@ impl VolumetricRenderer {
             ray_steps: self.config.ray_steps,
             pixel_scale: if self.config.half_resolution { 2 } else { 1 },
             time: frame as f32 / fps as f32,
-            density_scale: self.config.density_scale,
+            density_scale: self.config.density_scale * modulation.density.max(0.0),
             absorption: self.config.absorption,
-            emission: self.config.emission,
+            emission: self.config.emission * modulation.emission.max(0.0),
             dimensions: [dimensions.0 as f32, dimensions.1 as f32],
-            padding: [0; 2],
+            motion_scale: modulation.motion.max(0.0),
+            padding: 0,
         };
         context
             .queue

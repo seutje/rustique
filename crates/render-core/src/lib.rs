@@ -33,5 +33,9 @@ pub use targets::{
     PrimitiveTarget, TargetError, load_gltf_points, load_svg_points, load_text_points,
     particles_from_target, primitive_points,
 };
-pub use volumetrics::{VolumetricConfig, VolumetricQuality, VolumetricRenderer};
-pub use water_droplets::{WaterDropletConfig, WaterDropletError, WaterDropletRenderer};
+pub use volumetrics::{
+    VolumetricConfig, VolumetricModulation, VolumetricQuality, VolumetricRenderer,
+};
+pub use water_droplets::{
+    WaterDropletConfig, WaterDropletError, WaterDropletModulation, WaterDropletRenderer,
+};

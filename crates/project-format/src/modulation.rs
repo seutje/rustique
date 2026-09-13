@@ -46,6 +46,12 @@ pub enum ModulationTarget {
     MaterialRoughness,
     ReflectionIntensity,
     SurfaceScale,
+    VolumeDensity,
+    VolumeMotion,
+    DropletDensity,
+    DropletSize,
+    DropletRefraction,
+    DropletGravity,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -101,6 +107,12 @@ pub struct ModulatedParameters {
     pub material_roughness: f32,
     pub reflection_intensity: f32,
     pub surface_scale: f32,
+    pub volume_density: f32,
+    pub volume_motion: f32,
+    pub droplet_density: f32,
+    pub droplet_size: f32,
+    pub droplet_refraction: f32,
+    pub droplet_gravity: f32,
 }
 
 impl Default for ModulatedParameters {
@@ -115,6 +127,12 @@ impl Default for ModulatedParameters {
             material_roughness: 0.14,
             reflection_intensity: 1.35,
             surface_scale: 1.0,
+            volume_density: 1.0,
+            volume_motion: 1.0,
+            droplet_density: 1.0,
+            droplet_size: 1.0,
+            droplet_refraction: 1.0,
+            droplet_gravity: 1.0,
         }
     }
 }
@@ -134,6 +152,14 @@ impl ModulatedParameters {
                     self.reflection_intensity = value.output_value;
                 }
                 ModulationTarget::SurfaceScale => self.surface_scale = value.output_value,
+                ModulationTarget::VolumeDensity => self.volume_density = value.output_value,
+                ModulationTarget::VolumeMotion => self.volume_motion = value.output_value,
+                ModulationTarget::DropletDensity => self.droplet_density = value.output_value,
+                ModulationTarget::DropletSize => self.droplet_size = value.output_value,
+                ModulationTarget::DropletRefraction => {
+                    self.droplet_refraction = value.output_value;
+                }
+                ModulationTarget::DropletGravity => self.droplet_gravity = value.output_value,
             }
         }
     }
@@ -291,5 +317,42 @@ mod tests {
             1.0 / 60.0,
         );
         assert!(active.is_empty());
+    }
+
+    #[test]
+    fn applies_specialized_renderer_targets() {
+        let targets = [
+            ModulationTarget::VolumeDensity,
+            ModulationTarget::VolumeMotion,
+            ModulationTarget::DropletDensity,
+            ModulationTarget::DropletSize,
+            ModulationTarget::DropletRefraction,
+            ModulationTarget::DropletGravity,
+        ];
+        let active: Vec<_> = targets
+            .into_iter()
+            .zip([2.0, 3.0, 4.0, 5.0, 6.0, 7.0])
+            .map(|(target, output_value)| ActiveModulation {
+                target,
+                source_value: 0.5,
+                output_value,
+            })
+            .collect();
+        let mut parameters = ModulatedParameters::default();
+        parameters.apply(&active);
+        let actual = [
+            parameters.volume_density,
+            parameters.volume_motion,
+            parameters.droplet_density,
+            parameters.droplet_size,
+            parameters.droplet_refraction,
+            parameters.droplet_gravity,
+        ];
+        assert!(
+            actual
+                .into_iter()
+                .zip([2.0, 3.0, 4.0, 5.0, 6.0, 7.0])
+                .all(|(left, right)| (left - right).abs() < f32::EPSILON)
+        );
     }
 }

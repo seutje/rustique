@@ -4,7 +4,7 @@ import type { ActiveModulation } from "./native";
 import { LiveInput } from "./LiveInput";
 
 const sources: ModulationSource[] = ["sub", "bass", "low_mids", "mids", "high_mids", "highs", "rms", "transient", "spectral_centroid", "spectral_flux"];
-const targets: ModulationTarget[] = ["gravity_strength", "particle_size", "brightness", "burst_emission", "camera_fov", "camera_shake"];
+const targets: ModulationTarget[] = ["gravity_strength", "particle_size", "brightness", "burst_emission", "camera_fov", "camera_shake", "material_roughness", "reflection_intensity", "surface_scale", "volume_density", "volume_motion", "droplet_density", "droplet_size", "droplet_refraction", "droplet_gravity"];
 const analysisProfiles = [
   ["Techno", "../profiles/analysis/techno.json"],
   ["Drum & Bass", "../profiles/analysis/drum-and-bass.json"],

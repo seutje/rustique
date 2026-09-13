@@ -15,8 +15,9 @@ use project_format::{
 use render_core::{
     BenchmarkConfig, GpuContext, LiquidChromeConfig, LiquidChromeError, LiquidChromeRenderer,
     OffscreenError, OffscreenRenderTarget, ParticleRenderError, ParticleRenderer,
-    PerspectiveCamera, RgbaColor, VolumetricConfig, VolumetricQuality, VolumetricRenderer,
-    WaterDropletConfig, WaterDropletError, WaterDropletRenderer,
+    PerspectiveCamera, RgbaColor, VolumetricConfig, VolumetricModulation, VolumetricQuality,
+    VolumetricRenderer, WaterDropletConfig, WaterDropletError, WaterDropletModulation,
+    WaterDropletRenderer,
 };
 use simulation::SimulationTiming;
 use std::{
@@ -239,11 +240,11 @@ pub fn render_png_sequence(
         let clear = RgbaColor::new(background[0], background[1], background[2], background[3]);
         if frame < config.start_frame {
             if let Some(droplets) = &droplets {
-                let _pixels = droplets.render_frame(
+                let _pixels = droplets.render_frame_modulated(
                     context,
                     &target,
                     time as f32,
-                    parameters.burst_emission,
+                    water_modulation(&parameters),
                     clear,
                 )?;
             } else if let Some(chrome) = &chrome {
@@ -257,7 +258,14 @@ pub fn render_png_sequence(
                     clear,
                 )?;
             } else if let Some(volume) = &volume {
-                let _pixels = volume.render_frame(context, &target, frame, project.fps, clear)?;
+                let _pixels = volume.render_frame_modulated(
+                    context,
+                    &target,
+                    frame,
+                    project.fps,
+                    volume_modulation(&parameters),
+                    clear,
+                )?;
             } else if let Some(renderer) = &mut renderer {
                 let _pixels = renderer.render_timeline_frame(
                     context,
@@ -272,14 +280,14 @@ pub fn render_png_sequence(
         }
         let path = frame_path(&config.output_directory, frame);
         if let Some(droplets) = &droplets {
-            droplets.save_frame_png(
+            let pixels = droplets.render_frame_modulated(
                 context,
                 &target,
                 time as f32,
-                parameters.burst_emission,
+                water_modulation(&parameters),
                 clear,
-                path,
             )?;
+            target.save_png(&pixels, &path)?;
         } else if let Some(chrome) = &chrome {
             chrome.save_frame_png(
                 context,
@@ -292,7 +300,15 @@ pub fn render_png_sequence(
                 path,
             )?;
         } else if let Some(volume) = &volume {
-            volume.save_frame_png(context, &target, frame, project.fps, clear, path)?;
+            let pixels = volume.render_frame_modulated(
+                context,
+                &target,
+                frame,
+                project.fps,
+                volume_modulation(&parameters),
+                clear,
+            )?;
+            target.save_png(&pixels, &path)?;
         } else if let Some(renderer) = &mut renderer {
             renderer.save_timeline_frame_png(
                 context,
@@ -308,6 +324,25 @@ pub fn render_png_sequence(
     Ok(SequenceReport {
         frames_rendered: config.end_frame - config.start_frame,
     })
+}
+
+fn water_modulation(parameters: &ModulatedParameters) -> WaterDropletModulation {
+    WaterDropletModulation {
+        emission: parameters.burst_emission,
+        density: parameters.droplet_density,
+        size: parameters.droplet_size,
+        refraction: parameters.droplet_refraction,
+        gravity: parameters.droplet_gravity,
+        brightness: parameters.brightness,
+    }
+}
+
+fn volume_modulation(parameters: &ModulatedParameters) -> VolumetricModulation {
+    VolumetricModulation {
+        density: parameters.volume_density,
+        emission: parameters.brightness,
+        motion: parameters.volume_motion,
+    }
 }
 
 #[allow(clippy::cast_precision_loss)]

@@ -2,6 +2,11 @@
 
 Projects select the GPU volumetric path with `"render_mode": "volumetric"`. The Nebula preset enables it by default. Particle positions are splatted into a reusable atomic 3D density grid, then a fullscreen raymarch integrates colored emission and exponential light absorption. Sequence and video rendering reuse the existing deterministic frame history for temporal accumulation.
 
+Audio mappings can drive `brightness` (emission), `volume_density`, and
+`volume_motion`. The bundled Nebula preset combines RMS, bass, and spectral flux
+so loud passages glow, low frequencies thicken the cloud, and changing spectra
+accelerate its internal motion.
+
 The CLI `--post-quality` option also selects volumetric quality:
 
 | Quality | Density grid | Ray steps | Sampling |

@@ -5,5 +5,10 @@
   "camera": { "position": [0.0, 0.15, 2.8], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 42.0, "mode": "static", "drift_amplitude": [0.03, 0.03, 0.02], "shake_amplitude": 0.025 },
   "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 5.0, "background": [0.0, 0.015, 0.002, 1.0] },
   "macros": [ { "id": "viscosity", "label": "Viscosity", "target": "force_strength_scale", "minimum": 0.2, "maximum": 2.0, "default": 1.0 }, { "id": "globule_size", "label": "Globule Size", "target": "particle_size", "minimum": 2.0, "maximum": 10.0, "default": 5.0 } ],
-  "recommended_mappings": [ { "source": "transient", "target": "burst_emission", "amount": 10000.0, "offset": 0.0, "minimum": 0.0, "maximum": 10000.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.2 } ]
+  "recommended_mappings": [
+    { "source": "transient", "target": "burst_emission", "amount": 75000.0, "offset": 45000.0, "minimum": 45000.0, "maximum": 120000.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.22 },
+    { "source": "bass", "target": "gravity_strength", "amount": 1.5, "offset": 0.55, "minimum": 0.55, "maximum": 2.05, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.025, "release_seconds": 0.35 },
+    { "source": "highs", "target": "particle_size", "amount": 5.0, "offset": 3.5, "minimum": 3.5, "maximum": 8.5, "polarity": "normal", "curve": "linear", "attack_seconds": 0.02, "release_seconds": 0.24 },
+    { "source": "rms", "target": "brightness", "amount": 1.5, "offset": 0.55, "minimum": 0.55, "maximum": 2.05, "polarity": "normal", "curve": "linear", "attack_seconds": 0.05, "release_seconds": 0.38 }
+  ]
 }

@@ -7,9 +7,11 @@ mod layers;
 mod liquid_chrome;
 mod offscreen;
 mod particles;
+mod passes;
 mod post_process;
 mod spatial_grid;
 mod surface;
+mod targets;
 mod volumetrics;
 mod water_droplets;
 
@@ -22,8 +24,13 @@ pub use offscreen::{OffscreenError, OffscreenRenderTarget, RgbaColor};
 pub use particles::{
     BenchmarkConfig, FrameTiming, FrameUniforms, ParticleRenderError, ParticleRenderer,
 };
+pub use passes::{PassError, RenderPass, save_exr, save_render_passes};
 pub use post_process::{PostProcessConfig, PostProcessQuality};
 pub use spatial_grid::{SpatialGrid, SpatialGridConfig, SpatialGridError, SpatialGridStats};
 pub use surface::SurfacePresenter;
+pub use targets::{
+    PrimitiveTarget, TargetError, load_gltf_points, load_svg_points, load_text_points,
+    particles_from_target, primitive_points,
+};
 pub use volumetrics::{VolumetricConfig, VolumetricQuality, VolumetricRenderer};
 pub use water_droplets::{WaterDropletConfig, WaterDropletError, WaterDropletRenderer};

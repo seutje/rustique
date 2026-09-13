@@ -8,10 +8,15 @@ rust-version.workspace = true
 [dependencies]
 bytemuck = "1"
 log = "0.4"
-image = { version = "0.25", default-features = false, features = ["hdr", "jpeg", "png"] }
+image = { version = "0.25", default-features = false, features = ["exr", "hdr", "jpeg", "png"] }
+fontdue = "0.9"
+gltf = { version = "1", default-features = false, features = ["import", "utils"] }
 png = "0.17"
+resvg = { version = "0.45", default-features = false }
+usvg = { version = "0.45", default-features = false }
 simulation = { path = "../simulation" }
 thiserror = "2"
+tiny-skia = "0.11"
 wgpu = "24"
 
 [lints]

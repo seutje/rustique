@@ -46,9 +46,9 @@ fn load_clamped(texture: texture_2d<f32>, coordinate: vec2<i32>) -> vec3<f32> {
 @fragment
 fn accumulate(input: VertexOutput) -> @location(0) vec4<f32> {
     let coordinate = clamp(vec2<i32>(input.position.xy), vec2<i32>(0), vec2<i32>(settings.dimensions) - vec2<i32>(1));
-    let scene = textureLoad(scene_texture, coordinate, 0).rgb;
-    let history = textureLoad(history_texture, coordinate, 0).rgb;
-    return vec4<f32>(scene + history * settings.trail_decay, 1.0);
+    let scene = textureLoad(scene_texture, coordinate, 0);
+    let history = textureLoad(history_texture, coordinate, 0);
+    return vec4<f32>(scene.rgb + history.rgb * settings.trail_decay, max(scene.a, history.a * settings.trail_decay));
 }
 
 fn bloom_at(coordinate: vec2<i32>) -> vec3<f32> {
@@ -66,6 +66,7 @@ fn finish(input: VertexOutput) -> @location(0) vec4<f32> {
     let coordinate = clamp(vec2<i32>(input.position.xy), vec2<i32>(0), vec2<i32>(settings.dimensions) - vec2<i32>(1));
     let offset = vec2<i32>(i32(settings.chromatic_pixels), 0);
     let base = load_clamped(history_texture, coordinate);
+    let alpha = textureLoad(history_texture, coordinate, 0).a;
     var color = vec3<f32>(
         load_clamped(history_texture, coordinate + offset).r,
         base.g,
@@ -80,5 +81,5 @@ fn finish(input: VertexOutput) -> @location(0) vec4<f32> {
     let vignette = 1.0 - settings.vignette_strength * smoothstep(0.35, 1.25, dot(centered, centered));
     color *= vignette;
     color = pow(max(color, vec3<f32>(0.0)), vec3<f32>(settings.inverse_gamma));
-    return vec4<f32>(color, 1.0);
+    return vec4<f32>(color, alpha);
 }

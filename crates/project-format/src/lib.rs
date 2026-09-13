@@ -2,6 +2,7 @@
 
 mod audio_profile;
 mod automation;
+mod creative;
 mod modulation;
 mod package;
 mod preset;
@@ -11,6 +12,7 @@ pub use audio_profile::{
     ReactionProfileOverridesV1, ReactionProfileSelectionV1, ReactionProfileV1,
 };
 pub use automation::{AutomationKeyframeV1, AutomationTrackV1, SceneMarkerV1, evaluate_automation};
+pub use creative::{configure_seamless_camera_loop, morph_presets, randomize_preset_macros};
 
 pub use modulation::{
     ActiveModulation, EnvelopeSmoother, ModulatedParameters, ModulationCurve, ModulationMapping,

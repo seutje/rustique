@@ -117,6 +117,27 @@ impl ParticleRenderer {
         particle_count: u32,
         seed: u64,
     ) -> Result<Self, ParticleRenderError> {
+        let particles = initialize_particles(particle_count, seed);
+        Self::new_with_particles(context, &particles, seed)
+    }
+
+    /// Allocates particle state supplied by an asset/shape target generator.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an empty set or a storage allocation beyond the
+    /// selected adapter's limits.
+    #[allow(clippy::too_many_lines)]
+    pub fn new_with_particles(
+        context: &GpuContext,
+        particles: &[Particle],
+        seed: u64,
+    ) -> Result<Self, ParticleRenderError> {
+        let particle_count =
+            u32::try_from(particles.len()).map_err(|_| ParticleRenderError::BufferLimit {
+                required: u64::MAX,
+                maximum: u64::from(context.device.limits().max_storage_buffer_binding_size),
+            })?;
         if particle_count == 0 {
             return Err(ParticleRenderError::EmptyParticleSet);
         }
@@ -125,13 +146,12 @@ impl ParticleRenderer {
         if required > maximum {
             return Err(ParticleRenderError::BufferLimit { required, maximum });
         }
-        let particles = initialize_particles(particle_count, seed);
         let make_buffer = |label| {
             context
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some(label),
-                    contents: bytemuck::cast_slice(&particles),
+                    contents: bytemuck::cast_slice(particles),
                     usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 })
         };

@@ -4,6 +4,7 @@ import { Timeline } from "./Timeline";
 import {
   clearPreviews, enqueuePreview, enqueueProductionRender, loadPreviewAudio, loadProject,
   openPreview, queryGpuInfo, queryPreviewJobs, queryPreviewStats, queryProductionStatus,
+  randomizeProject, morphProject, makeSeamlessLoop,
   resetPreview, resizeViewport, saveProject, seekPreview, setPreviewPlaying,
   setPreviewQuality, setViewportVisible, updateProject,
   type GpuSummary, type PreviewJob, type PreviewStats, type ProductionSettings,
@@ -12,6 +13,7 @@ import {
 import { useEditorStore, type ProjectData } from "./store";
 
 const presets = ["Star System", "Nebula", "Liquid Chrome", "Green Slime", "Water Droplets"];
+const presetFiles: Record<string, string> = { "Star System": "presets/star-system.json", Nebula: "presets/nebula.json", "Liquid Chrome": "presets/liquid-chrome.json", "Green Slime": "presets/green-slime.json", "Water Droplets": "presets/water-droplets.json" };
 type View = "editor" | "exporter";
 type Run = (action: () => Promise<void>) => void;
 
@@ -34,7 +36,7 @@ function ExportPanel({ project, audioPath, stats, sliceRange, previewJobs, produ
         <label>Supersampling<input type="number" min="1" max="2" step="0.25" value={production.supersampling} onChange={(e) => setProduction({ ...production, supersampling: Number(e.target.value) })}/></label>
         <label>Motion blur<input type="number" min="1" max="16" value={production.motionBlurSamples} onChange={(e) => setProduction({ ...production, motionBlurSamples: Number(e.target.value) })}/></label>
         <label>Simulation steps<input type="number" min="1" max="16" value={production.substeps} onChange={(e) => setProduction({ ...production, substeps: Number(e.target.value) })}/></label>
-        <select value={production.codec} onChange={(e) => setProduction({ ...production, codec: e.target.value as "h264" | "hevc" })}><option value="h264">H.264</option><option value="hevc">HEVC</option></select>
+        <select value={production.codec} onChange={(e) => setProduction({ ...production, codec: e.target.value as ProductionSettings["codec"] })}><option value="h264">H.264</option><option value="hevc">HEVC</option><option value="prores422hq">ProRes 422 HQ</option><option value="prores4444">ProRes 4444 + alpha</option></select>
       </div><button className="primary-action" disabled={!project || !audioPath || productionStatus?.state === "rendering" || productionStatus?.state === "queued"} onClick={() => project && run(() => enqueueProductionRender(project, audioPath, production))}>Render complete video</button>
       {productionStatus && <div className="production-status"><progress max="1" value={productionStatus.totalFrames ? productionStatus.completedFrames / productionStatus.totalFrames : 0}/><span>{productionStatus.state}{productionStatus.etaSeconds != null ? ` · ETA ${Math.ceil(productionStatus.etaSeconds)}s` : ""}</span><small>{productionStatus.error ?? productionStatus.manifestPath}</small></div>}</section>
       <section className="export-card"><h2>Preview renders</h2><p>Create a final-quality still at the playhead or render the selected timeline range.</p>
@@ -51,6 +53,11 @@ export function App() {
   const { document, dirty, setDocument, replaceProject } = useEditorStore();
   const [view, setView] = useState<View>("editor");
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [mutationAmount, setMutationAmount] = useState(0.25);
+  const [variation, setVariation] = useState(0);
+  const [morphFrom, setMorphFrom] = useState("Star System");
+  const [morphTo, setMorphTo] = useState("Nebula");
+  const [morphAmount, setMorphAmount] = useState(0.5);
   const [projectPath, setProjectPath] = useState("examples/star-orbit.rustique.json");
   const [audioPath, setAudioPath] = useState("");
   const [gpu, setGpu] = useState<GpuSummary | null>(null);
@@ -91,14 +98,19 @@ export function App() {
   async function openProject() {
     previewUpdateGeneration.current += 1;
     if (previewUpdateTimer.current !== null) window.clearTimeout(previewUpdateTimer.current);
-    previewUpdateTimer.current = null; setDocument(await loadProject(projectPath));
+    previewUpdateTimer.current = null;
+    const loaded = await loadProject(projectPath);
+    setDocument(loaded); setProjectPath(loaded.path);
   }
   async function saveCurrentProject() {
     if (!document) return;
     previewUpdateGeneration.current += 1;
     if (previewUpdateTimer.current !== null) window.clearTimeout(previewUpdateTimer.current);
     previewUpdateTimer.current = null;
-    const validated = await updateProject(document.project); await saveProject(document.path, validated); replaceProject(validated, false);
+    const validated = await updateProject(document.project);
+    const savedPath = await saveProject(projectPath, validated);
+    setDocument({ ...document, path: savedPath, project: validated });
+    setProjectPath(savedPath);
   }
   const project = document?.project;
   async function loadAudio() {
@@ -110,7 +122,10 @@ export function App() {
 
   return <main className={`studio-shell ${view}-view`}><header className="topbar"><div><span className="brand">RUSTIQUE</span><span className="subtitle">particle studio {dirty ? "• unsaved" : ""}</span></div><div className="topbar-actions"><button className={view === "exporter" ? "selected" : ""} onClick={() => setView(view === "editor" ? "exporter" : "editor")}>{view === "editor" ? "Export" : "Back to editor"}</button><button onClick={() => void run(async () => setGpu(await queryGpuInfo()))}>Inspect GPU</button></div></header>
     {view === "editor" ? <>
-      <aside className="panel presets"><h2>Visual presets</h2>{presets.map((preset) => <button className={selectedPreset === preset ? "selected" : ""} key={preset} onClick={() => setSelectedPreset(preset)}>{preset}</button>)}</aside>
+      <aside className="panel presets"><h2>Visual presets</h2>{presets.map((preset) => <button className={selectedPreset === preset ? "selected" : ""} key={preset} onClick={() => setSelectedPreset(preset)}>{preset}</button>)}
+        <h2 className="creative-heading">Creative tools</h2><label>Mutation amount <output>{mutationAmount.toFixed(2)}</output></label><input type="range" min="0" max="1" step="0.01" value={mutationAmount} onChange={(e) => setMutationAmount(Number(e.target.value))}/><button disabled={!project} onClick={() => project && void run(async () => { const next = variation + 1; setVariation(next); edit(await randomizeProject(document?.path ?? projectPath, project, mutationAmount, next)); })}>Randomize variation</button>
+        <label>Morph from</label><select value={morphFrom} onChange={(e) => setMorphFrom(e.target.value)}>{presets.map((name) => <option key={name}>{name}</option>)}</select><label>Morph to</label><select value={morphTo} onChange={(e) => setMorphTo(e.target.value)}>{presets.map((name) => <option key={name}>{name}</option>)}</select><label>Morph <output>{morphAmount.toFixed(2)}</output></label><input type="range" min="0" max="1" step="0.01" value={morphAmount} onChange={(e) => setMorphAmount(Number(e.target.value))}/><button disabled={!project} onClick={() => project && void run(async () => edit(await morphProject(project, presetFiles[morphFrom], presetFiles[morphTo], morphAmount)))}>Apply morph</button><button disabled={!project} onClick={() => project && void run(async () => edit(await makeSeamlessLoop(project)))}>Make camera loop</button>
+      </aside>
       <aside className="panel inspector"><h2>Inspector</h2><label>Project path</label><input value={projectPath} onChange={(e) => setProjectPath(e.target.value)} /><div className="button-row"><button onClick={() => void run(openProject)}>Load</button><button disabled={!project} onClick={() => void run(saveCurrentProject)}>Save</button></div><label>Preview audio</label><input value={audioPath} placeholder="C:\\music\\track.wav" onChange={(e) => setAudioPath(e.target.value)} /><button onClick={() => void run(loadAudio)} disabled={!audioPath || !project}>Load audio</button><label>Preview quality</label><select defaultValue="preview" onChange={(e) => void setPreviewQuality(e.target.value)}><option value="draft">Draft · 100K</option><option value="preview">Preview · 500K</option><option value="final">Final count</option></select>{project && document && <Inspector project={project} schema={document.parameters} macros={document.macros} active={stats?.activeModulations ?? []} onChange={edit} />}{gpu && <dl><dt>GPU</dt><dd>{gpu.adapter}</dd><dt>Backend</dt><dd>{gpu.backend}</dd><dt>Driver</dt><dd>{gpu.driver}</dd></dl>}{error && <p className="error">{error}</p>}</aside>
       <section className="viewport"><div className="viewport-grid" ref={viewportRef}/><div className="transport"><button onClick={() => void resetPreview()}>Reset</button><button className={stats?.playing ? "playing" : ""} onClick={() => void setPreviewPlaying(!(stats?.playing ?? false))}>{stats?.playing ? "Pause" : "Play"}</button><span>frame {stats?.frameIndex ?? 0} / {lastFrame}</span><span>{project ? ((stats?.frameIndex ?? 0) / project.fps).toFixed(2) : "0.00"}s</span><span>{stats?.framesPerSecond.toFixed(1) ?? "0.0"} fps</span><span>{stats?.particleCount.toLocaleString() ?? 0} particles</span><span>GPU {stats?.gpuRenderMs?.toFixed(2) ?? "—"} ms</span></div></section>
       <section className="panel timeline"><h2>Audio & timeline</h2><Timeline project={project ?? null} audio={timelineAudio} cursorSeconds={project ? (stats?.frameIndex ?? 0) / project.fps : 0} onSeek={(seconds) => project && void seekPreview(Math.round(seconds * project.fps))} onProjectChange={edit} onSliceChange={setSliceRange}/></section>

@@ -12,9 +12,11 @@ use project_format::{
 use render_core::{
     BackendPreference, BenchmarkConfig, FluidConfig, FluidRenderer, GpuConfig, GpuContext,
     LayerBlendMode, LiquidChromeConfig, LiquidChromeRenderer, OffscreenRenderTarget,
-    ParticleRenderer, PerspectiveCamera, PostProcessConfig, PostProcessQuality, RgbaColor,
-    SpatialGrid, SpatialGridConfig, VolumetricConfig, VolumetricQuality, VolumetricRenderer,
-    WaterDropletConfig, WaterDropletRenderer, composite_rgba8,
+    ParticleRenderer, PerspectiveCamera, PostProcessConfig, PostProcessQuality, PrimitiveTarget,
+    RenderPass, RgbaColor, SpatialGrid, SpatialGridConfig, VolumetricConfig, VolumetricQuality,
+    VolumetricRenderer, WaterDropletConfig, WaterDropletRenderer, composite_rgba8,
+    load_gltf_points, load_svg_points, load_text_points, particles_from_target, primitive_points,
+    save_exr, save_render_passes,
 };
 use simulation::{Force, SimulationTiming};
 
@@ -121,6 +123,7 @@ fn run(args: impl Iterator<Item = String>) -> Result<(), String> {
         Some(Command::Benchmark(benchmark)) => run_benchmark(&context, &benchmark),
         Some(Command::SpatialBenchmark(options)) => run_spatial_benchmark(&context, &options),
         Some(Command::Fluid(options)) => run_fluid(&context, &options),
+        Some(Command::Target(options)) => run_target(&context, &options),
         Some(Command::AudioInfo(_)) => unreachable!("audio command returned before GPU setup"),
         Some(Command::ModulationInfo(_)) => {
             unreachable!("modulation command returned before GPU setup")
@@ -149,6 +152,7 @@ enum Command {
     Benchmark(BenchmarkOptions),
     SpatialBenchmark(SpatialBenchmarkOptions),
     Fluid(FluidOptions),
+    Target(TargetOptions),
     AudioInfo(AudioInfoOptions),
     ModulationInfo(ModulationInfoOptions),
     Sequence(SequenceOptions),
@@ -262,6 +266,27 @@ struct FluidOptions {
 }
 
 #[derive(Debug, PartialEq)]
+struct TargetOptions {
+    source: TargetSource,
+    output: PathBuf,
+    count: u32,
+    seed: u64,
+    width: u32,
+    height: u32,
+    dissolution: f32,
+    passes: bool,
+    exr: Option<PathBuf>,
+}
+
+#[derive(Debug, PartialEq)]
+enum TargetSource {
+    Shape(PrimitiveTarget),
+    Mesh(PathBuf),
+    Svg(PathBuf),
+    Text { value: String, font: PathBuf },
+}
+
+#[derive(Debug, PartialEq)]
 struct AudioInfoOptions {
     input: PathBuf,
     time_seconds: f64,
@@ -336,6 +361,10 @@ impl CliOptions {
                 "fluid" => {
                     let fluid = FluidOptions::parse(&mut args, &mut options.backend)?;
                     set_command(&mut options.command, Command::Fluid(fluid))?;
+                }
+                "target" => {
+                    let target = TargetOptions::parse(&mut args, &mut options.backend)?;
+                    set_command(&mut options.command, Command::Target(target))?;
                 }
                 "audio-info" => {
                     let audio = AudioInfoOptions::parse(&mut args)?;
@@ -640,6 +669,86 @@ impl FluidOptions {
             return Err("fluid requires --output <path>".to_owned());
         }
         Ok(result)
+    }
+}
+
+impl TargetOptions {
+    fn parse(
+        args: &mut impl Iterator<Item = String>,
+        backend: &mut BackendPreference,
+    ) -> Result<Self, String> {
+        let mut source = None;
+        let mut output = None;
+        let mut count = 100_000;
+        let mut seed = 1;
+        let mut width = 1920;
+        let mut height = 1080;
+        let mut dissolution = 0.0;
+        let mut passes = false;
+        let mut exr = None;
+        let mut text = None;
+        let mut font = None;
+        while let Some(argument) = args.next() {
+            match argument.as_str() {
+                "--shape" => {
+                    let value = required_value(args, "--shape")?;
+                    let shape = match value.as_str() {
+                        "sphere" => PrimitiveTarget::Sphere,
+                        "cube" => PrimitiveTarget::Cube,
+                        "ring" => PrimitiveTarget::Ring,
+                        _ => return Err("--shape requires sphere, cube, or ring".into()),
+                    };
+                    source = Some(TargetSource::Shape(shape));
+                }
+                "--mesh" => {
+                    source = Some(TargetSource::Mesh(PathBuf::from(required_value(
+                        args, "--mesh",
+                    )?)));
+                }
+                "--svg" => {
+                    source = Some(TargetSource::Svg(PathBuf::from(required_value(
+                        args, "--svg",
+                    )?)));
+                }
+                "--text" => text = Some(required_value(args, "--text")?),
+                "--font" => font = Some(PathBuf::from(required_value(args, "--font")?)),
+                "--output" => output = Some(PathBuf::from(required_value(args, "--output")?)),
+                "--count" => count = parse_dimension("count", &required_value(args, "--count")?)?,
+                "--seed" => seed = parse_number("seed", &required_value(args, "--seed")?)?,
+                "--width" => width = parse_dimension("width", &required_value(args, "--width")?)?,
+                "--height" => {
+                    height = parse_dimension("height", &required_value(args, "--height")?)?;
+                }
+                "--dissolution" => {
+                    dissolution =
+                        parse_number("dissolution", &required_value(args, "--dissolution")?)?;
+                    if !(0.0..=1.0).contains(&dissolution) {
+                        return Err("--dissolution must be between 0 and 1".into());
+                    }
+                }
+                "--passes" => passes = true,
+                "--exr" => exr = Some(PathBuf::from(required_value(args, "--exr")?)),
+                "--backend" => *backend = parse_backend(&required_value(args, "--backend")?)?,
+                _ => return Err(format!("unknown target argument: {argument}")),
+            }
+        }
+        if text.is_some() || font.is_some() {
+            source = Some(TargetSource::Text {
+                value: text.ok_or("--text requires --font")?,
+                font: font.ok_or("--font requires --text")?,
+            });
+        }
+        Ok(Self {
+            source: source.ok_or("target requires --shape, --mesh, --svg, or --text/--font")?,
+            output: output.ok_or("target requires --output <path>")?,
+            count,
+            seed,
+            width,
+            height,
+            dissolution,
+            passes,
+            exr,
+        })
     }
 }
 
@@ -1234,6 +1343,73 @@ fn run_fluid(context: &GpuContext, options: &FluidOptions) -> Result<(), String>
     Ok(())
 }
 
+fn run_target(context: &GpuContext, options: &TargetOptions) -> Result<(), String> {
+    let points = match &options.source {
+        TargetSource::Shape(shape) => primitive_points(*shape, options.count, options.seed),
+        TargetSource::Mesh(path) => load_gltf_points(path).map_err(|error| error.to_string())?,
+        TargetSource::Svg(path) => load_svg_points(path, 512).map_err(|error| error.to_string())?,
+        TargetSource::Text { value, font } => {
+            load_text_points(value, font, 96.0).map_err(|error| error.to_string())?
+        }
+    };
+    let particles =
+        particles_from_target(&points, options.count, options.seed, options.dissolution)
+            .map_err(|error| error.to_string())?;
+    let target = OffscreenRenderTarget::new(context, options.width, options.height)
+        .map_err(|error| error.to_string())?;
+    let mut renderer = ParticleRenderer::new_with_particles(context, &particles, options.seed)
+        .map_err(|error| error.to_string())?;
+    let pixels = renderer
+        .render_frame(
+            context,
+            &target,
+            0,
+            60.0,
+            RgbaColor::new(0.0, 0.0, 0.0, 0.0),
+        )
+        .map_err(|error| error.to_string())?;
+    target
+        .save_png(&pixels, &options.output)
+        .map_err(|error| error.to_string())?;
+    if options.passes {
+        let directory = options
+            .output
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."));
+        let stem = options
+            .output
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .unwrap_or("target");
+        save_render_passes(
+            &pixels,
+            None,
+            options.width,
+            options.height,
+            directory,
+            stem,
+            &[
+                RenderPass::Alpha,
+                RenderPass::Depth,
+                RenderPass::Normals,
+                RenderPass::MotionVectors,
+                RenderPass::Emission,
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+    if let Some(path) = &options.exr {
+        save_exr(&pixels, options.width, options.height, path)
+            .map_err(|error| error.to_string())?;
+    }
+    println!(
+        "Rendered {} target particles to {}",
+        options.count,
+        options.output.display()
+    );
+    Ok(())
+}
+
 #[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
 fn render_project_still(
     context: &GpuContext,
@@ -1729,6 +1905,9 @@ fn print_help() {
          [--frame 0] [--fps 60] [--substeps 1] [--motion none|orbit|swirl] \
          [--width 1920] [--height 1080] \
          [--backend auto|dx12|vulkan]\n\
+         particle-render target (--shape sphere|cube|ring | --mesh model.glb | --svg art.svg | \
+         --text TEXT --font font.ttf) --output target.png [--count 100000] [--dissolution 0..1] \
+         [--passes] [--exr target.exr] [--width 1920] [--height 1080]\n\
          particle-render benchmark [--count N] [--frames 10] [--width 1920] \
          [--height 1080] [--particle-size 2] [--overdraw] [--readback] \
          [--backend auto|dx12|vulkan]\n\
@@ -2047,6 +2226,36 @@ mod tests {
             Some(Command::Fluid(FluidOptions {
                 count: 500_000,
                 audio_pressure: 0.8,
+                ..
+            }))
+        ));
+    }
+
+    #[test]
+    fn parses_shape_target_with_passes_and_exr() {
+        let options = CliOptions::parse(
+            [
+                "target",
+                "--shape",
+                "sphere",
+                "--output",
+                "shape.png",
+                "--dissolution",
+                "0.4",
+                "--passes",
+                "--exr",
+                "shape.exr",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .unwrap();
+        assert!(matches!(
+            options.command,
+            Some(Command::Target(TargetOptions {
+                source: TargetSource::Shape(PrimitiveTarget::Sphere),
+                passes: true,
+                exr: Some(_),
                 ..
             }))
         ));

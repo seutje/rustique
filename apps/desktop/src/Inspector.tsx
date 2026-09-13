@@ -1,6 +1,7 @@
 import type { ChangeEvent } from "react";
 import type { MacroSchema, ModulationMapping, ModulationSource, ModulationTarget, ParameterSchema, ProjectData } from "./store";
 import type { ActiveModulation } from "./native";
+import { LiveInput } from "./LiveInput";
 
 const sources: ModulationSource[] = ["sub", "bass", "low_mids", "mids", "high_mids", "highs", "rms", "transient", "spectral_centroid", "spectral_flux"];
 const targets: ModulationTarget[] = ["gravity_strength", "particle_size", "brightness", "burst_emission", "camera_fov", "camera_shake"];
@@ -17,6 +18,7 @@ export function Inspector({ project, schema, macros, active, onChange }: Props) 
   function numeric(index: number, key: keyof ModulationMapping, event: ChangeEvent<HTMLInputElement>) { updateMapping(index, { [key]: Number(event.target.value) }); }
   function updateMacro(macro: MacroSchema, value: number) { let next = structuredClone(project) as ProjectData; const selection = next.visual_preset as { overrides?: { macros?: Record<string, number> } } | null; const oldValue = selection?.overrides?.macros?.[macro.id] ?? macro.default; if (selection) { selection.overrides ??= {}; selection.overrides.macros ??= {}; selection.overrides.macros[macro.id] = value; } const paths: Record<string, string> = { particle_count: "particle_system.count", particle_size: "render_defaults.particle_size_pixels", orbit_speed: "camera.orbit_degrees_per_second", dolly_speed: "camera.dolly_units_per_second", camera_fov: "camera.vertical_fov_degrees", camera_shake: "camera.shake_amplitude" }; if (paths[macro.target]) next = setPath(next, paths[macro.target], macro.target === "particle_count" ? Math.round(value) : value); if (macro.target === "force_strength_scale" && oldValue !== 0) { const ratio = value / oldValue; next.forces = next.forces.map((force) => { const copy = structuredClone(force) as Record<string, unknown>; if (typeof copy.strength === "number") copy.strength *= ratio; if (typeof copy.coefficient === "number") copy.coefficient *= ratio; if (Array.isArray(copy.acceleration)) copy.acceleration = copy.acceleration.map((component) => Number(component) * ratio); return copy; }); } onChange(next); }
   return <>
+    <LiveInput />
     <h3>Parameters</h3>
     {schema.map((item) => { const value = getPath(project, item.path); return <div className="parameter" key={item.path}><div className="parameter-title"><label>{item.label}</label>{item.modulationTarget && <button className="mod-button" title="Add modulation" onClick={() => addMapping(item.modulationTarget!)}>◇</button>}</div>
       {item.kind === "number" && <div className="number-control"><input type="range" min={item.minimum!} max={item.maximum!} step={item.step!} value={Number(value)} onChange={(e) => onChange(setPath(project, item.path, Number(e.target.value)))} /><input type="number" min={item.minimum!} max={item.maximum!} step={item.step!} value={Number(value)} onChange={(e) => onChange(setPath(project, item.path, Number(e.target.value)))} /></div>}

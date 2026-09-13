@@ -3,7 +3,10 @@
 use std::path::PathBuf;
 
 use audio_engine::{AnalysisConfig, analyze_cached};
-use project_format::{MacroParameterV1, ProjectV1, VisualPresetV1};
+use project_format::{
+    MacroParameterV1, ProjectV1, VisualPresetV1, configure_seamless_camera_loop, morph_presets,
+    randomize_preset_macros,
+};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use render_core::{GpuConfig, GpuContext};
 use serde::Serialize;
@@ -11,6 +14,8 @@ use tauri::{Manager, State};
 
 mod preview;
 use preview::{PreviewJobStatus, PreviewQueue};
+mod live_input;
+use live_input::{LiveInputController, LiveInputValue};
 mod production;
 use production::{ProductionQueue, ProductionSettings, ProductionStatus};
 
@@ -199,14 +204,73 @@ fn update_project(
 }
 
 #[tauri::command]
-fn save_project(path: PathBuf, mut project: ProjectV1) -> Result<(), String> {
-    project.visual_preset = None;
-    project.reaction_profile = None;
-    project.save(path).map_err(|error| error.to_string())
+fn save_project(path: PathBuf, project: ProjectV1) -> Result<PathBuf, String> {
+    let save_path = resolve_project_path(&path);
+    project
+        .save(&save_path)
+        .map_err(|error| error.to_string())?;
+    save_path.canonicalize().map_err(|error| {
+        format!(
+            "saved project but failed to resolve its path {}: {error}",
+            save_path.display()
+        )
+    })
+}
+
+#[tauri::command]
+fn randomize_project(
+    project_path: PathBuf,
+    mut project: ProjectV1,
+    amount: f32,
+    variation: u64,
+) -> Result<ProjectV1, String> {
+    let selection = project
+        .visual_preset
+        .clone()
+        .ok_or("controlled randomization requires a selected visual preset")?;
+    let load_path = resolve_project_path(&project_path);
+    let preset_path = load_path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .join(&selection.source);
+    let preset = VisualPresetV1::load(preset_path).map_err(|error| error.to_string())?;
+    let overrides = randomize_preset_macros(&preset, project.seed ^ variation, amount)
+        .map_err(|error| error.to_string())?;
+    preset
+        .apply(&mut project, &overrides)
+        .map_err(|error| error.to_string())?;
+    project.visual_preset = Some(project_format::PresetSelectionV1 {
+        source: selection.source,
+        overrides,
+    });
+    project.validate().map_err(|error| error.to_string())?;
+    Ok(project)
+}
+
+#[tauri::command]
+fn morph_project(
+    mut project: ProjectV1,
+    left: PathBuf,
+    right: PathBuf,
+    amount: f32,
+) -> Result<ProjectV1, String> {
+    let left =
+        VisualPresetV1::load(resolve_project_path(&left)).map_err(|error| error.to_string())?;
+    let right =
+        VisualPresetV1::load(resolve_project_path(&right)).map_err(|error| error.to_string())?;
+    morph_presets(&left, &right, amount, &mut project).map_err(|error| error.to_string())?;
+    Ok(project)
+}
+
+#[tauri::command]
+fn make_seamless_loop(mut project: ProjectV1) -> Result<ProjectV1, String> {
+    configure_seamless_camera_loop(&mut project).map_err(|error| error.to_string())?;
+    project.validate().map_err(|error| error.to_string())?;
+    Ok(project)
 }
 
 fn resolve_project_path(path: &std::path::Path) -> PathBuf {
-    if path.is_absolute() || path.exists() {
+    if path.is_absolute() {
         return path.to_owned();
     }
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -350,6 +414,23 @@ fn production_render_status(queue: State<'_, ProductionQueue>) -> Result<Product
     queue.status()
 }
 
+#[tauri::command]
+fn midi_ports() -> Result<Vec<String>, String> {
+    LiveInputController::midi_ports()
+}
+#[tauri::command]
+fn midi_connect(index: usize, input: State<'_, LiveInputController>) -> Result<(), String> {
+    input.connect_midi(index)
+}
+#[tauri::command]
+fn osc_listen(address: &str, input: State<'_, LiveInputController>) -> Result<(), String> {
+    input.listen_osc(address)
+}
+#[tauri::command]
+fn live_input_values(input: State<'_, LiveInputController>) -> Result<Vec<LiveInputValue>, String> {
+    input.snapshot()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 /// Starts the desktop application event loop.
 ///
@@ -369,6 +450,7 @@ pub fn run() {
             app.manage(ViewportController::new(handle.hwnd.get())?);
             app.manage(PreviewQueue::new()?);
             app.manage(ProductionQueue::new()?);
+            app.manage(LiveInputController::new());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -383,6 +465,9 @@ pub fn run() {
             preview_quality,
             preview_stats,
             update_project,
+            randomize_project,
+            morph_project,
+            make_seamless_loop,
             save_project,
             enqueue_preview,
             preview_jobs,
@@ -390,6 +475,10 @@ pub fn run() {
             open_preview,
             enqueue_production_render,
             production_render_status,
+            midi_ports,
+            midi_connect,
+            osc_listen,
+            live_input_values,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Rustique desktop application");

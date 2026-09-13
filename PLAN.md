@@ -1133,24 +1133,32 @@ These are optional and should not block core development.
 
 ## Tasks
 
-- [ ] Controlled parameter randomization
-- [ ] Mutation amount slider
-- [ ] Preset morphing
-- [ ] Seamless loop generation
-- [ ] Shape targets
-- [ ] GLTF/GLB mesh emission
-- [ ] Mesh dissolution
-- [ ] Text/SVG particle targets
-- [ ] MIDI input
-- [ ] OSC input
-- [ ] Render passes:
-  - [ ] alpha
-  - [ ] depth
-  - [ ] normals
-  - [ ] motion vectors
-  - [ ] emission
-- [ ] EXR output
-- [ ] Transparent ProRes output
+- [x] Controlled parameter randomization
+  - Deterministic, seed-based preset macro mutation stays within declared ranges.
+- [x] Mutation amount slider
+  - The editor exposes mutation strength and generates repeatable variations.
+- [x] Preset morphing
+  - The editor interpolates shared scene properties between any two file-backed presets.
+- [x] Seamless loop generation
+  - A creative command configures an exact one-revolution camera orbit and disables non-looping camera motion.
+- [x] Shape targets
+- [x] GLTF/GLB mesh emission
+- [x] Mesh dissolution
+- [x] Text/SVG particle targets
+  - The shared headless target pipeline deterministically samples primitives, GLTF/GLB positions, rasterized SVG, and font-rendered text, with a 0–1 dissolution blend.
+- [x] MIDI input
+- [x] OSC input
+  - The desktop inspector can connect to MIDI ports, normalize CC messages, bind an OSC UDP address, and display numeric live values.
+- [x] Render passes:
+  - [x] alpha
+  - [x] depth
+  - [x] normals
+  - [x] motion vectors
+  - [x] emission
+  - The experimental headless target command exports deterministic screen-space auxiliary PNG passes.
+- [x] EXR output
+- [x] Transparent ProRes output
+  - Target renders can emit floating-point RGBA OpenEXR; post-processing preserves alpha and both CLI and desktop expose ProRes 4444.
 
 ---
 

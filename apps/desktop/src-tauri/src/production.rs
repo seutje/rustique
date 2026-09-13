@@ -218,6 +218,8 @@ fn render(
     let codec = match job.settings.codec.as_str() {
         "h264" => VideoCodec::H264,
         "hevc" => VideoCodec::Hevc,
+        "prores422hq" => VideoCodec::ProRes422Hq,
+        "prores4444" => VideoCodec::ProRes4444,
         _ => return Err(format!("unknown production codec '{}'", job.settings.codec)),
     };
     if let Ok(mut current) = status.lock() {

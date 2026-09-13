@@ -97,14 +97,17 @@ fn update(@builtin(global_invocation_id) id: vec3<u32>) {
     }
     if (particle.position_age.x < -1.0 || particle.position_age.x > 1.0) { particle.velocity_lifetime.x *= -1.0; }
     if (particle.position_age.y < -1.0 || particle.position_age.y > 1.0) { particle.velocity_lifetime.y *= -1.0; }
+    if (particle.position_age.z < -1.0 || particle.position_age.z > 1.0) { particle.velocity_lifetime.z *= -1.0; }
     if (particle.position_age.w >= particle.velocity_lifetime.w) {
         let generation = frame.frame_index + 1u;
         let base = index ^ frame.simulation_seed ^ generation * 0x9e3779b9u;
         let x = random_unit(base) * 2.0 - 1.0;
         let y = random_unit(base ^ 0x68bc21ebu) * 2.0 - 1.0;
+        let z = random_unit(base ^ 0x967a889bu) * 2.0 - 1.0;
         let speed = 0.05 + random_unit(base ^ 0x02e5be93u) * 0.15;
-        particle.position_age = vec4<f32>(x * 0.85, y * 0.85, 0.0, 0.0);
-        particle.velocity_lifetime = vec4<f32>(-y * speed, x * speed, 0.0, 5.0);
+        let z_velocity = (random_unit(base ^ 0xd3a2646cu) * 2.0 - 1.0) * speed;
+        particle.position_age = vec4<f32>(vec3<f32>(x, y, z) * 0.85, 0.0);
+        particle.velocity_lifetime = vec4<f32>(-y * speed, x * speed, z_velocity, 5.0);
     }
     particles_out[index] = particle;
 }

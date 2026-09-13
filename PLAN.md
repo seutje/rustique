@@ -173,6 +173,7 @@ struct Particle {
   - [x] position integration
   - [x] lifetime update
 - [x] Initialize deterministic particle state from a seed
+- [x] Populate and simulate particle position and velocity across all three spatial axes
 - [x] Render particles as points or camera-facing quads
 - [x] Add basic camera matrices
 - [x] Add frame uniforms:

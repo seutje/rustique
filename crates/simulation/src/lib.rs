@@ -230,11 +230,17 @@ pub fn initialize_particles(count: u32, seed: u64) -> Vec<Particle> {
         .map(|index| {
             let x = signed_unit(hash(seed, index, 0));
             let y = signed_unit(hash(seed, index, 1));
-            let z = signed_unit(hash(seed, index, 2)) * 0.25;
+            let z = signed_unit(hash(seed, index, 2));
             let velocity_scale = 0.05 + unit(hash(seed, index, 3)) * 0.15;
+            let z_velocity = signed_unit(hash(seed, index, 8)) * velocity_scale;
             Particle {
-                position_age: [x * 0.85, y * 0.85, z, unit(hash(seed, index, 4)) * 5.0],
-                velocity_lifetime: [-y * velocity_scale, x * velocity_scale, 0.0, 5.0],
+                position_age: [
+                    x * 0.85,
+                    y * 0.85,
+                    z * 0.85,
+                    unit(hash(seed, index, 4)) * 5.0,
+                ],
+                velocity_lifetime: [-y * velocity_scale, x * velocity_scale, z_velocity, 5.0],
                 color: [
                     0.35 + unit(hash(seed, index, 5)) * 0.65,
                     0.45 + unit(hash(seed, index, 6)) * 0.55,
@@ -281,6 +287,21 @@ mod tests {
         assert_eq!(short, initialize_particles(4, 42));
         assert_eq!(short, initialize_particles(8, 42)[..4]);
         assert_ne!(short, initialize_particles(4, 43));
+    }
+
+    #[test]
+    fn initialization_populates_and_moves_through_depth() {
+        let particles = initialize_particles(128, 42);
+        assert!(
+            particles
+                .iter()
+                .any(|particle| particle.position_age[2].abs() > 0.5)
+        );
+        assert!(
+            particles
+                .iter()
+                .any(|particle| particle.velocity_lifetime[2].abs() > 0.01)
+        );
     }
 
     #[test]

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type { TimelineAudio } from "./native";
 import type { ModulationTarget, ProjectData } from "./store";
 
-const targets: ModulationTarget[] = ["gravity_strength", "particle_size", "brightness", "burst_emission", "camera_fov", "camera_shake"];
+const targets: ModulationTarget[] = ["gravity_strength", "particle_size", "brightness", "hue_shift", "burst_emission", "camera_fov", "camera_shake"];
 const pretty = (value: string) => value.replaceAll("_", " ");
 interface Props { project: ProjectData | null; audio: TimelineAudio | null; cursorSeconds: number; slice: [number, number]; onSeek: (seconds: number) => void; onProjectChange: (project: ProjectData) => void; onSliceChange: (range: [number, number]) => void; }
 

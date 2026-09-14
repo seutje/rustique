@@ -160,6 +160,11 @@ struct VertexOutput {
     @location(0) color: vec4<f32>,
 }
 
+fn hsv_to_rgb(hsv: vec3<f32>) -> vec3<f32> {
+    let p = abs(fract(hsv.xxx + vec3<f32>(0.0, 0.6666667, 0.3333333)) * 6.0 - 3.0);
+    return hsv.z * mix(vec3<f32>(1.0), clamp(p - 1.0, vec3<f32>(0.0), vec3<f32>(1.0)), hsv.y);
+}
+
 @vertex
 fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
     var output: VertexOutput;
@@ -175,7 +180,23 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
         position = vec4<f32>(2.0, 2.0, 2.0, 1.0);
     }
     output.position = position;
-    output.color = vec4<f32>(particle.color.rgb * frame.brightness, particle.color.a);
+    var color = particle.color.rgb;
+    if (frame.initialization_mode == 1u) {
+        let radial = clamp(
+            length(particle.position_age.xy) / max(frame.initialization_params.x, 0.001),
+            0.0,
+            1.25,
+        );
+        let gradient = smoothstep(0.0, 1.0, radial);
+        let particle_variation = (particle.color.b - 0.875) * 0.12;
+        let hue = mix(0.08, 0.68, gradient)
+            + particle_variation
+            + frame.initialization_params.w;
+        let saturation = mix(0.35, 0.92, min(radial, 1.0));
+        let value = mix(1.0, 0.58, min(radial, 1.0));
+        color = hsv_to_rgb(vec3<f32>(hue, saturation, value));
+    }
+    output.color = vec4<f32>(color * frame.brightness, particle.color.a);
     return output;
 }
 

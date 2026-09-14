@@ -277,5 +277,9 @@ mod tests {
             mapping.source == crate::ModulationSource::Sub
                 && mapping.target == crate::ModulationTarget::ParticleSize
         }));
+        assert!(project.modulation_mappings.iter().any(|mapping| {
+            mapping.source == crate::ModulationSource::Bass
+                && mapping.target == crate::ModulationTarget::HueShift
+        }));
     }
 }

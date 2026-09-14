@@ -299,6 +299,7 @@ pub fn export_video(
                         position_scale: 1.0,
                         force_scale: parameters.gravity_strength,
                         brightness: parameters.brightness,
+                        hue_shift: parameters.hue_shift,
                         active_particle_count: has_burst
                             .then_some(parameters.burst_emission.max(0.0) as u32),
                         view_projection: Some(camera_matrix(

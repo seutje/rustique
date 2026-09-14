@@ -519,6 +519,7 @@ async fn render_loop(
                         particle_size_pixels: parameters.particle_size,
                         force_scale: parameters.gravity_strength,
                         brightness: parameters.brightness,
+                        hue_shift: parameters.hue_shift,
                         active_particle_count: None,
                         view_projection: Some(view_projection),
                         ..BenchmarkConfig::default()

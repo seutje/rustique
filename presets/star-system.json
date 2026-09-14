@@ -18,6 +18,7 @@
     { "source": "sub", "target": "gravity_strength", "amount": 1.65, "offset": 0.55, "minimum": 0.55, "maximum": 2.2, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.015, "release_seconds": 0.28 },
     { "source": "highs", "target": "brightness", "amount": 1.8, "offset": 0.65, "minimum": 0.65, "maximum": 2.45, "polarity": "normal", "curve": "linear", "attack_seconds": 0.015, "release_seconds": 0.2 },
     { "source": "sub", "target": "particle_size", "amount": 4.0, "offset": 1.4, "minimum": 1.4, "maximum": 5.4, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.16 },
+    { "source": "bass", "target": "hue_shift", "amount": 0.18, "offset": -0.03, "minimum": -0.03, "maximum": 0.15, "polarity": "normal", "curve": "linear", "attack_seconds": 0.03, "release_seconds": 0.25 },
     { "source": "transient", "target": "camera_shake", "amount": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.12 },
     { "source": "bass", "target": "camera_fov", "amount": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "polarity": "normal", "curve": "linear", "attack_seconds": 0.04, "release_seconds": 0.3 }
   ]

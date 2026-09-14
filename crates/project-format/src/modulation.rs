@@ -40,6 +40,7 @@ pub enum ModulationTarget {
     GravityStrength,
     ParticleSize,
     Brightness,
+    HueShift,
     BurstEmission,
     CameraFov,
     CameraShake,
@@ -101,6 +102,7 @@ pub struct ModulatedParameters {
     pub gravity_strength: f32,
     pub particle_size: f32,
     pub brightness: f32,
+    pub hue_shift: f32,
     pub burst_emission: f32,
     pub camera_fov: f32,
     pub camera_shake: f32,
@@ -121,6 +123,7 @@ impl Default for ModulatedParameters {
             gravity_strength: 1.0,
             particle_size: 2.0,
             brightness: 1.0,
+            hue_shift: 0.0,
             burst_emission: 0.0,
             camera_fov: 0.0,
             camera_shake: 0.0,
@@ -144,6 +147,7 @@ impl ModulatedParameters {
                 ModulationTarget::GravityStrength => self.gravity_strength = value.output_value,
                 ModulationTarget::ParticleSize => self.particle_size = value.output_value,
                 ModulationTarget::Brightness => self.brightness = value.output_value,
+                ModulationTarget::HueShift => self.hue_shift = value.output_value,
                 ModulationTarget::BurstEmission => self.burst_emission = value.output_value,
                 ModulationTarget::CameraFov => self.camera_fov = value.output_value,
                 ModulationTarget::CameraShake => self.camera_shake = value.output_value,
@@ -260,17 +264,18 @@ mod tests {
     }
 
     #[test]
-    fn maps_three_visual_targets_and_clamps() {
+    fn maps_visual_targets_and_clamps() {
         let mappings = [
             mapping(ModulationTarget::GravityStrength),
             mapping(ModulationTarget::ParticleSize),
             mapping(ModulationTarget::Brightness),
+            mapping(ModulationTarget::HueShift),
         ];
-        let mut smoothers = [EnvelopeSmoother::default(); 3];
+        let mut smoothers = [EnvelopeSmoother::default(); 4];
         let mut features = AudioFeatureFrame::default();
         features.bands.bass = 0.75;
         let active = evaluate_mappings(&mappings, &mut smoothers, features, 1.0 / 60.0);
-        assert_eq!(active.len(), 3);
+        assert_eq!(active.len(), 4);
         assert!(
             active
                 .iter()
@@ -281,6 +286,7 @@ mod tests {
         assert!((parameters.gravity_strength - 2.0).abs() < f32::EPSILON);
         assert!((parameters.particle_size - 2.0).abs() < f32::EPSILON);
         assert!((parameters.brightness - 2.0).abs() < f32::EPSILON);
+        assert!((parameters.hue_shift - 2.0).abs() < f32::EPSILON);
     }
 
     #[test]

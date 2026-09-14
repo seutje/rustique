@@ -47,6 +47,7 @@ pub struct BenchmarkConfig {
     pub position_scale: f32,
     pub force_scale: f32,
     pub brightness: f32,
+    pub hue_shift: f32,
     pub active_particle_count: Option<u32>,
     pub view_projection: Option<[[f32; 4]; 4]>,
 }
@@ -58,6 +59,7 @@ impl Default for BenchmarkConfig {
             position_scale: 1.0,
             force_scale: 1.0,
             brightness: 1.0,
+            hue_shift: 0.0,
             active_particle_count: None,
             view_projection: None,
         }
@@ -411,8 +413,9 @@ impl ParticleRenderer {
         clear: RgbaColor,
     ) -> Result<(), ParticleRenderError> {
         let reset_history = frame_index < self.timeline_frame || frame_index == 0;
-        let (initialization_mode, initialization_params) =
+        let (initialization_mode, mut initialization_params) =
             initialization_uniforms(self.initialization);
+        initialization_params[3] = render_config.hue_shift;
         if frame_index < self.timeline_frame {
             self.reset(context);
         }
@@ -562,8 +565,9 @@ impl ParticleRenderer {
         config: BenchmarkConfig,
     ) -> Result<FrameTiming, ParticleRenderError> {
         let started = Instant::now();
-        let (initialization_mode, initialization_params) =
+        let (initialization_mode, mut initialization_params) =
             initialization_uniforms(self.initialization);
+        initialization_params[3] = config.hue_shift;
         let uniforms = FrameUniforms {
             view_projection: config
                 .view_projection

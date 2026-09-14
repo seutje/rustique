@@ -24,6 +24,7 @@ struct FrameUniforms {
     initialization_mode: u32,
     _padding: u32,
     initialization_params: vec4<f32>,
+    lifecycle_params: vec4<f32>,
 }
 
 struct Force {
@@ -54,6 +55,12 @@ fn update(@builtin(global_invocation_id) id: vec3<u32>) {
         return;
     }
     var particle = particles_in[index];
+    // A future spawn time keeps particles dormant during the initial stagger
+    // and briefly after each respawn. Dormant particles retain their initial state.
+    if (frame.simulation_time < particle.params.x) {
+        particles_out[index] = particle;
+        return;
+    }
     var velocity = particle.velocity_lifetime.xyz;
     for (var force_index = 0u; force_index < frame.force_count; force_index++) {
         let force = forces[force_index];
@@ -135,13 +142,17 @@ fn update(@builtin(global_invocation_id) id: vec3<u32>) {
             let speed_variation = 0.9 + random_unit(base ^ 0x02e5be93u) * 0.2;
             let speed = orbital_speed * speed_variation;
             let z_velocity = (random_unit(base ^ 0xd3a2646cu) * 2.0 - 1.0) * 0.005;
+            let lifetime_scale = 1.0
+                + (random_unit(base ^ 0xa511e9b3u) * 2.0 - 1.0) * frame.lifecycle_params.y;
+            let respawn_delay = random_unit(base ^ 0x63d83595u) * frame.lifecycle_params.x;
             particle.position_age = vec4<f32>(radial_direction * radial, z, 0.0);
             particle.velocity_lifetime = vec4<f32>(
                 -radial_direction.y * speed,
                 radial_direction.x * speed,
                 z_velocity,
-                frame.initialization_params.z,
+                frame.initialization_params.z * lifetime_scale,
             );
+            particle.params.x = frame.simulation_time + respawn_delay;
         } else {
             let x = random_unit(base) * 2.0 - 1.0;
             let y = random_unit(base ^ 0x68bc21ebu) * 2.0 - 1.0;
@@ -150,6 +161,7 @@ fn update(@builtin(global_invocation_id) id: vec3<u32>) {
             let z_velocity = (random_unit(base ^ 0xd3a2646cu) * 2.0 - 1.0) * speed;
             particle.position_age = vec4<f32>(vec3<f32>(x, y, z) * 0.85, 0.0);
             particle.velocity_lifetime = vec4<f32>(-y * speed, x * speed, z_velocity, 5.0);
+            particle.params.x = frame.simulation_time;
         }
     }
     particles_out[index] = particle;
@@ -176,7 +188,10 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
     let offset = corners[index % 6u] * frame.particle_size_pixels / frame.viewport_size;
     var position = frame.view_projection * vec4<f32>(particle.position_age.xyz * frame.position_scale, 1.0);
     position = vec4<f32>(position.xy + offset * position.w, position.zw);
-    if (index / 6u >= frame.active_particle_count) {
+    if (
+        index / 6u >= frame.active_particle_count
+        || frame.simulation_time < particle.params.x
+    ) {
         position = vec4<f32>(2.0, 2.0, 2.0, 1.0);
     }
     output.position = position;
@@ -191,7 +206,7 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
         let particle_variation = (particle.color.b - 0.875) * 0.12;
         let hue = mix(0.08, 0.68, gradient)
             + particle_variation
-            + frame.initialization_params.w;
+            + frame.lifecycle_params.z;
         let saturation = mix(0.35, 0.92, min(radial, 1.0));
         let value = mix(1.0, 0.58, min(radial, 1.0));
         color = hsv_to_rgb(vec3<f32>(hue, saturation, value));

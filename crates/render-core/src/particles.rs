@@ -16,7 +16,7 @@ use crate::{
 const PARTICLE_SHADER: &str = include_str!("../../../shaders/particles/particles.wgsl");
 const MAX_FORCE_COUNT: usize = 32;
 
-/// Per-frame inputs shared by compute and render shaders (32 bytes).
+/// Per-frame inputs shared by compute and render shaders.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct FrameUniforms {
@@ -37,9 +37,10 @@ pub struct FrameUniforms {
     pub initialization_mode: u32,
     padding: u32,
     pub initialization_params: [f32; 4],
+    pub lifecycle_params: [f32; 4],
 }
 
-const _: () = assert!(size_of::<FrameUniforms>() == 144);
+const _: () = assert!(size_of::<FrameUniforms>() == 160);
 
 #[derive(Clone, Copy, Debug)]
 pub struct BenchmarkConfig {
@@ -413,9 +414,9 @@ impl ParticleRenderer {
         clear: RgbaColor,
     ) -> Result<(), ParticleRenderError> {
         let reset_history = frame_index < self.timeline_frame || frame_index == 0;
-        let (initialization_mode, mut initialization_params) =
+        let (initialization_mode, initialization_params, mut lifecycle_params) =
             initialization_uniforms(self.initialization);
-        initialization_params[3] = render_config.hue_shift;
+        lifecycle_params[2] = render_config.hue_shift;
         if frame_index < self.timeline_frame {
             self.reset(context);
         }
@@ -445,6 +446,7 @@ impl ParticleRenderer {
                     initialization_mode,
                     padding: 0,
                     initialization_params,
+                    lifecycle_params,
                 };
                 context
                     .queue
@@ -494,6 +496,7 @@ impl ParticleRenderer {
             initialization_mode,
             padding: 0,
             initialization_params,
+            lifecycle_params,
         };
         context
             .queue
@@ -555,7 +558,7 @@ impl ParticleRenderer {
     ///
     /// Returns an error if timestamp results cannot be mapped. GPU fields are
     /// `None` on adapters without timestamp-query support.
-    #[allow(clippy::cast_precision_loss)]
+    #[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
     pub fn benchmark_frame(
         &mut self,
         context: &GpuContext,
@@ -565,9 +568,9 @@ impl ParticleRenderer {
         config: BenchmarkConfig,
     ) -> Result<FrameTiming, ParticleRenderError> {
         let started = Instant::now();
-        let (initialization_mode, mut initialization_params) =
+        let (initialization_mode, initialization_params, mut lifecycle_params) =
             initialization_uniforms(self.initialization);
-        initialization_params[3] = config.hue_shift;
+        lifecycle_params[2] = config.hue_shift;
         let uniforms = FrameUniforms {
             view_projection: config
                 .view_projection
@@ -591,6 +594,7 @@ impl ParticleRenderer {
             initialization_mode,
             padding: 0,
             initialization_params,
+            lifecycle_params,
         };
         context
             .queue
@@ -680,7 +684,7 @@ impl ParticleRenderer {
         fps: f32,
         clear: RgbaColor,
     ) -> Result<Vec<u8>, ParticleRenderError> {
-        let (initialization_mode, initialization_params) =
+        let (initialization_mode, initialization_params, lifecycle_params) =
             initialization_uniforms(self.initialization);
         let uniforms = FrameUniforms {
             view_projection: aspect_matrix(target.dimensions()),
@@ -700,6 +704,7 @@ impl ParticleRenderer {
             initialization_mode,
             padding: 0,
             initialization_params,
+            lifecycle_params,
         };
         context
             .queue
@@ -786,14 +791,20 @@ fn seed_u32(seed: u64) -> u32 {
     u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
 }
 
-fn initialization_uniforms(initialization: ParticleInitialization) -> (u32, [f32; 4]) {
+fn initialization_uniforms(initialization: ParticleInitialization) -> (u32, [f32; 4], [f32; 4]) {
     match initialization {
-        ParticleInitialization::Volume => (0, [0.0; 4]),
+        ParticleInitialization::Volume => (0, [0.0; 4], [0.0; 4]),
         ParticleInitialization::GalacticDisk {
             radius,
             thickness,
             lifetime_seconds,
-        } => (1, [radius, thickness, lifetime_seconds, 0.0]),
+            spawn_spread_seconds,
+            lifetime_variation,
+        } => (
+            1,
+            [radius, thickness, lifetime_seconds, 0.0],
+            [spawn_spread_seconds, lifetime_variation, 0.0, 0.0],
+        ),
     }
 }
 

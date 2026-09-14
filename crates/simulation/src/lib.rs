@@ -28,6 +28,10 @@ pub enum ParticleInitialization {
         radius: f32,
         thickness: f32,
         lifetime_seconds: f32,
+        #[serde(default)]
+        spawn_spread_seconds: f32,
+        #[serde(default)]
+        lifetime_variation: f32,
     },
 }
 
@@ -304,7 +308,7 @@ pub fn initialize_particles_with(
 ) -> Vec<Particle> {
     (0..count)
         .map(|index| {
-            let (position, velocity, lifetime) = match initialization {
+            let (position, velocity, age, lifetime, spawn_time) = match initialization {
                 ParticleInitialization::Volume => {
                     let x = signed_unit(hash(seed, index, 0));
                     let y = signed_unit(hash(seed, index, 1));
@@ -317,13 +321,17 @@ pub fn initialize_particles_with(
                             x * tangential_speed,
                             signed_unit(hash(seed, index, 8)) * tangential_speed,
                         ],
+                        unit(hash(seed, index, 4)) * 5.0,
                         5.0,
+                        0.0,
                     )
                 }
                 ParticleInitialization::GalacticDisk {
                     radius,
                     thickness,
                     lifetime_seconds,
+                    spawn_spread_seconds,
+                    lifetime_variation,
                 } => {
                     let radial = unit(hash(seed, index, 0)).sqrt() * radius;
                     let angle = unit(hash(seed, index, 1)) * std::f32::consts::TAU;
@@ -331,26 +339,28 @@ pub fn initialize_particles_with(
                     // Match the 0.1-strength central well used by the galaxy
                     // preset, with slight deterministic variation for arm texture.
                     let orbital_speed = (0.1 / radial.max(0.12)).sqrt().min(0.75);
-                    let tangential_speed =
-                        orbital_speed * (0.9 + unit(hash(seed, index, 3)) * 0.2);
+                    let tangential_speed = orbital_speed * (0.9 + unit(hash(seed, index, 3)) * 0.2);
+                    let lifetime = lifetime_seconds
+                        * (1.0 + signed_unit(hash(seed, index, 9)) * lifetime_variation);
                     (
-                        [radial * cos, radial * sin, signed_unit(hash(seed, index, 2)) * thickness],
+                        [
+                            radial * cos,
+                            radial * sin,
+                            signed_unit(hash(seed, index, 2)) * thickness,
+                        ],
                         [
                             -sin * tangential_speed,
                             cos * tangential_speed,
                             signed_unit(hash(seed, index, 8)) * 0.005,
                         ],
-                        lifetime_seconds,
+                        0.0,
+                        lifetime,
+                        unit(hash(seed, index, 10)) * spawn_spread_seconds,
                     )
                 }
             };
             Particle {
-                position_age: [
-                    position[0],
-                    position[1],
-                    position[2],
-                    unit(hash(seed, index, 4)) * 5.0,
-                ],
+                position_age: [position[0], position[1], position[2], age],
                 velocity_lifetime: [velocity[0], velocity[1], velocity[2], lifetime],
                 color: [
                     0.35 + unit(hash(seed, index, 5)) * 0.65,
@@ -358,7 +368,8 @@ pub fn initialize_particles_with(
                     0.75 + unit(hash(seed, index, 7)) * 0.25,
                     1.0,
                 ],
-                params: [0.0; 4],
+                // params.x is the absolute simulation time at which this particle appears.
+                params: [spawn_time, 0.0, 0.0, 0.0],
             }
         })
         .collect()
@@ -469,12 +480,18 @@ mod tests {
                 radius: 0.8,
                 thickness: 0.04,
                 lifetime_seconds: 30.0,
+                spawn_spread_seconds: 3.0,
+                lifetime_variation: 0.4,
             },
         );
         assert!(particles.iter().all(|particle| {
             particle.position_age[2].abs() <= 0.04
-                && (particle.velocity_lifetime[3] - 30.0).abs() < f32::EPSILON
+                && (18.0..=42.0).contains(&particle.velocity_lifetime[3])
                 && particle.position_age[0].hypot(particle.position_age[1]) <= 0.8
+                && (0.0..3.0).contains(&particle.params[0])
+        }));
+        assert!(particles.windows(2).any(|pair| {
+            (pair[0].velocity_lifetime[3] - pair[1].velocity_lifetime[3]).abs() > f32::EPSILON
         }));
     }
 

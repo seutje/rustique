@@ -566,16 +566,22 @@ impl ProjectV1 {
             radius,
             thickness,
             lifetime_seconds,
+            spawn_spread_seconds,
+            lifetime_variation,
         } = self.particle_system.initialization
             && (!radius.is_finite()
                 || radius <= 0.0
                 || !thickness.is_finite()
                 || thickness < 0.0
                 || !lifetime_seconds.is_finite()
-                || lifetime_seconds <= 5.0)
+                || lifetime_seconds <= 5.0
+                || !spawn_spread_seconds.is_finite()
+                || spawn_spread_seconds < 0.0
+                || !lifetime_variation.is_finite()
+                || !(0.0..1.0).contains(&lifetime_variation))
         {
             return Err(ProjectError::Validation(
-                "galactic disk radius must be positive, thickness non-negative, and lifetime greater than five seconds".into(),
+                "galactic disk requires positive radius, non-negative thickness/spawn spread, lifetime greater than five seconds, and lifetime variation in [0, 1)".into(),
             ));
         }
         if self.render_defaults.width == 0 || self.render_defaults.height == 0 {

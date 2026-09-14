@@ -271,6 +271,10 @@ pub fn export_video(
                     parameters.material_roughness,
                     parameters.reflection_intensity,
                     parameters.surface_scale,
+                    project
+                        .camera
+                        .sample(time as f32, parameters.camera_fov, 0.0, project.seed)
+                        .vertical_fov_degrees,
                     clear,
                 )
                 .map_err(ExportError::from)

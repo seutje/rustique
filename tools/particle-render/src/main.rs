@@ -1487,6 +1487,7 @@ fn render_project_still(
                 material.roughness,
                 material.reflection_intensity,
                 material.surface_scale,
+                project.camera.vertical_fov_degrees,
                 RgbaColor::new(background[0], background[1], background[2], background[3]),
                 &options.output,
             )

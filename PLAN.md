@@ -597,6 +597,8 @@ Create reusable genre-aware analysis and reaction defaults.
 - [x] Add profile-level attack/release defaults
 - [x] Add profile-level frequency weighting
 - [x] Add recommended mappings
+  - Reflective slime and liquid-metal presets use bass-driven FOV/scale pulses
+    and transient-driven reflection/roughness flashes.
 - [x] Allow project overrides
 
 ## Acceptance Criteria

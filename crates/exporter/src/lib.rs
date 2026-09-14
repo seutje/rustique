@@ -266,6 +266,7 @@ pub fn render_png_sequence(
                     parameters.material_roughness,
                     parameters.reflection_intensity,
                     parameters.surface_scale,
+                    liquid_surface_fov(project, &parameters, time as f32),
                     clear,
                 )?;
             } else if let Some(volume) = &volume {
@@ -307,6 +308,7 @@ pub fn render_png_sequence(
                 parameters.material_roughness,
                 parameters.reflection_intensity,
                 parameters.surface_scale,
+                liquid_surface_fov(project, &parameters, time as f32),
                 clear,
                 path,
             )?;
@@ -346,6 +348,17 @@ fn water_modulation(parameters: &ModulatedParameters) -> WaterDropletModulation 
         gravity: parameters.droplet_gravity,
         brightness: parameters.brightness,
     }
+}
+
+fn liquid_surface_fov(
+    project: &ProjectV1,
+    parameters: &ModulatedParameters,
+    time_seconds: f32,
+) -> f32 {
+    project
+        .camera
+        .sample(time_seconds, parameters.camera_fov, 0.0, project.seed)
+        .vertical_fov_degrees
 }
 
 fn volume_modulation(parameters: &ModulatedParameters) -> VolumetricModulation {

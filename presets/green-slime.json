@@ -4,13 +4,13 @@
   "liquid_chrome": { "environment_preset": "milky_way", "roughness": 0.1, "reflection_intensity": 1.15, "metallic": 0.0, "surface_scale": 1.18, "base_color": [0.025, 0.52, 0.075], "surface_deformation": 0.1 },
   "particle_system": { "count": 120000, "substeps": 3, "emitter": { "type": "burst", "count": 120000, "frame": 0, "respawn": "loop" } },
   "forces": [ { "type": "directional_noise", "strength": 0.22, "frequency": 3.0 }, { "type": "point_attractor", "position": [0.0, -0.2, 0.0], "strength": 0.12 }, { "type": "sphere_constraint", "center": [0.0, 0.0, 0.0], "radius": 0.85, "bounce": 0.35 } ],
-  "camera": { "position": [0.0, 0.15, 2.8], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 42.0, "mode": "static", "drift_amplitude": [0.03, 0.03, 0.02], "shake_amplitude": 0.025 },
+  "camera": { "position": [0.0, 0.15, 2.8], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 42.0, "mode": "static", "drift_amplitude": [0.03, 0.03, 0.02], "fov_modulation_degrees": -9.0, "shake_amplitude": 0.025 },
   "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 5.0, "background": [0.002, 0.003, 0.004, 1.0] },
   "macros": [ { "id": "wetness", "label": "Wetness", "target": "material_roughness", "minimum": 0.03, "maximum": 0.3, "default": 0.1 }, { "id": "irregularity", "label": "Irregularity", "target": "surface_deformation", "minimum": 0.0, "maximum": 0.18, "default": 0.1 } ],
   "recommended_mappings": [
-    { "source": "transient", "target": "burst_emission", "amount": 75000.0, "offset": 45000.0, "minimum": 45000.0, "maximum": 120000.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.22 },
-    { "source": "bass", "target": "gravity_strength", "amount": 1.5, "offset": 0.55, "minimum": 0.55, "maximum": 2.05, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.025, "release_seconds": 0.35 },
-    { "source": "highs", "target": "particle_size", "amount": 5.0, "offset": 3.5, "minimum": 3.5, "maximum": 8.5, "polarity": "normal", "curve": "linear", "attack_seconds": 0.02, "release_seconds": 0.24 },
-    { "source": "rms", "target": "brightness", "amount": 1.5, "offset": 0.55, "minimum": 0.55, "maximum": 2.05, "polarity": "normal", "curve": "linear", "attack_seconds": 0.05, "release_seconds": 0.38 }
+    { "source": "bass", "target": "camera_fov", "amount": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.005, "release_seconds": 0.2 },
+    { "source": "bass", "target": "surface_scale", "amount": 0.08, "offset": 1.18, "minimum": 1.18, "maximum": 1.26, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.015, "release_seconds": 0.28 },
+    { "source": "transient", "target": "reflection_intensity", "amount": 0.75, "offset": 1.15, "minimum": 1.15, "maximum": 1.9, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.18 },
+    { "source": "transient", "target": "material_roughness", "amount": -0.06, "offset": 0.1, "minimum": 0.04, "maximum": 0.1, "polarity": "normal", "curve": "linear", "attack_seconds": 0.0, "release_seconds": 0.22 }
   ]
 }

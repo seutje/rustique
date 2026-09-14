@@ -63,7 +63,7 @@ struct Params {
     surface_scale: f32,
     surface_deformation: f32,
     base_color: [f32; 3],
-    _pad: f32,
+    vertical_fov_degrees: f32,
 }
 
 pub struct LiquidChromeRenderer {
@@ -143,7 +143,7 @@ impl LiquidChromeRenderer {
                     surface_scale: config.surface_scale,
                     surface_deformation: config.surface_deformation,
                     base_color: config.base_color,
-                    _pad: 0.0,
+                    vertical_fov_degrees: 45.0,
                 }),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
@@ -264,6 +264,7 @@ impl LiquidChromeRenderer {
         roughness: f32,
         reflection: f32,
         surface_scale: f32,
+        vertical_fov_degrees: f32,
         clear: RgbaColor,
     ) -> Result<Vec<u8>, LiquidChromeError> {
         let started = Instant::now();
@@ -279,7 +280,7 @@ impl LiquidChromeRenderer {
                 surface_scale: surface_scale.max(0.05),
                 surface_deformation: self.surface_deformation.clamp(0.0, 0.5),
                 base_color: self.base_color,
-                _pad: 0.0,
+                vertical_fov_degrees: vertical_fov_degrees.clamp(1.0, 179.0),
             }),
         );
         let mut encoder = ctx
@@ -329,6 +330,7 @@ impl LiquidChromeRenderer {
         roughness: f32,
         reflection: f32,
         surface_scale: f32,
+        vertical_fov_degrees: f32,
         clear: RgbaColor,
         path: impl AsRef<Path>,
     ) -> Result<(), LiquidChromeError> {
@@ -339,6 +341,7 @@ impl LiquidChromeRenderer {
             roughness,
             reflection,
             surface_scale,
+            vertical_fov_degrees,
             clear,
         )?;
         target.save_png(&pixels, path.as_ref())?;

@@ -237,6 +237,27 @@ mod tests {
     }
 
     #[test]
+    fn reflective_material_presets_react_to_bass_and_transients() {
+        for name in ["liquid-chrome", "green-slime"] {
+            let preset =
+                VisualPresetV1::load(repository_path(&format!("presets/{name}.json"))).unwrap();
+            assert!(preset.camera.fov_modulation_degrees.abs() >= 8.0);
+            assert!(preset.recommended_mappings.iter().any(|mapping| {
+                mapping.source == crate::ModulationSource::Bass
+                    && mapping.target == crate::ModulationTarget::CameraFov
+            }));
+            assert!(preset.recommended_mappings.iter().any(|mapping| {
+                mapping.source == crate::ModulationSource::Transient
+                    && mapping.target == crate::ModulationTarget::ReflectionIntensity
+            }));
+            assert!(preset.recommended_mappings.iter().any(|mapping| {
+                mapping.source == crate::ModulationSource::Transient
+                    && mapping.target == crate::ModulationTarget::MaterialRoughness
+            }));
+        }
+    }
+
+    #[test]
     fn project_macro_override_is_applied() {
         let preset = VisualPresetV1::load(repository_path("presets/star-system.json")).unwrap();
         let mut project =

@@ -182,18 +182,16 @@ impl From<&Force> for GpuForce {
                 minimum_acceleration,
                 long_range_strength,
                 long_range_drag,
-            } => {
-                Self::new(
-                    1,
-                    extend(position, strength),
-                    [
-                        minimum_acceleration,
-                        long_range_strength,
-                        long_range_drag,
-                        0.0,
-                    ],
-                )
-            }
+            } => Self::new(
+                1,
+                extend(position, strength),
+                [
+                    minimum_acceleration,
+                    long_range_strength,
+                    long_range_drag,
+                    0.0,
+                ],
+            ),
             Force::PointRepulsor { position, strength } => {
                 Self::new(2, extend(position, strength), [0.0; 4])
             }

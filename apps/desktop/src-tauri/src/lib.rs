@@ -396,6 +396,21 @@ fn production_render_status(queue: State<'_, ProductionQueue>) -> Result<Product
 }
 
 #[tauri::command]
+fn cancel_production_render(queue: State<'_, ProductionQueue>) -> Result<(), String> {
+    queue.cancel()
+}
+
+#[tauri::command]
+fn open_production_output(queue: State<'_, ProductionQueue>) -> Result<(), String> {
+    queue.open_output(false)
+}
+
+#[tauri::command]
+fn open_production_folder(queue: State<'_, ProductionQueue>) -> Result<(), String> {
+    queue.open_output(true)
+}
+
+#[tauri::command]
 fn midi_ports() -> Result<Vec<String>, String> {
     LiveInputController::midi_ports()
 }
@@ -457,6 +472,9 @@ pub fn run() {
             open_preview,
             enqueue_production_render,
             production_render_status,
+            cancel_production_render,
+            open_production_output,
+            open_production_folder,
             midi_ports,
             midi_connect,
             osc_listen,

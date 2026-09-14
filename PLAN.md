@@ -789,6 +789,7 @@ Make Rustique useful for complete music videos.
   - Deterministic FFmpeg temporal mixing is configurable from 1–16 frames.
 - [x] Add configurable simulation substeps
 - [x] Add render progress ETA based on measured throughput
+- [x] Add production output open/folder actions and queued/rendering cancellation
 - [x] Add output naming
 - [x] Add resume strategy investigation
   - A safe segmented-render approach is documented in `docs/RENDER_RESUME.md`; unsafe partial-container resume is intentionally not exposed.

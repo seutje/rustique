@@ -3,7 +3,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { Inspector } from "./Inspector";
 import { Timeline } from "./Timeline";
 import {
-  clearPreviews, enqueuePreview, enqueueProductionRender, loadPreviewAudio, loadProject,
+  cancelProductionRender, clearPreviews, enqueuePreview, enqueueProductionRender, loadPreviewAudio, loadProject,
+  openProductionFolder, openProductionOutput,
   openPreview, queryGpuInfo, queryPreviewJobs, queryPreviewStats, queryProductionStatus,
   randomizeProject, morphProject, makeSeamlessLoop,
   resetPreview, resizeViewport, saveProject, seekPreview, setPreviewPlaying,
@@ -29,6 +30,9 @@ interface ExportPanelProps {
 }
 
 function ExportPanel({ hidden, project, audioPath, stats, sliceRange, previewJobs, production, productionStatus, useFinalSliceSettings, setProduction, setPreviewJobs, setUseFinalSliceSettings, run }: ExportPanelProps) {
+  const productionActive = productionStatus?.state === "queued" || productionStatus?.state === "rendering";
+  const productionBusy = productionActive || productionStatus?.state === "cancelling";
+  const productionComplete = productionStatus?.state === "complete" && !!productionStatus.outputPath;
   return <section className="panel exporter-page" hidden={hidden}><div className="exporter-content">
     <div className="exporter-heading"><div><h1>Export</h1><p>Render the complete project or create a review preview.</p></div><div className="export-summary"><span>{project ? `${project.duration_seconds.toFixed(2)} seconds` : "No project loaded"}</span><span>{audioPath || "No audio loaded"}</span></div></div>
     <div className="exporter-columns">
@@ -39,8 +43,8 @@ function ExportPanel({ hidden, project, audioPath, stats, sliceRange, previewJob
         <label>Motion blur<input type="number" min="1" max="16" value={production.motionBlurSamples} onChange={(e) => setProduction({ ...production, motionBlurSamples: Number(e.target.value) })}/></label>
         <label>Simulation steps<input type="number" min="1" max="16" value={production.substeps} onChange={(e) => setProduction({ ...production, substeps: Number(e.target.value) })}/></label>
         <select value={production.codec} onChange={(e) => setProduction({ ...production, codec: e.target.value as ProductionSettings["codec"] })}><option value="h264">H.264</option><option value="hevc">HEVC</option><option value="prores422hq">ProRes 422 HQ</option><option value="prores4444">ProRes 4444 + alpha</option></select>
-      </div><button className="primary-action" disabled={!project || !audioPath || productionStatus?.state === "rendering" || productionStatus?.state === "queued"} onClick={() => project && run(() => enqueueProductionRender(project, audioPath, production))}>Render complete video</button>
-      {productionStatus && <div className="production-status"><progress max="1" value={productionStatus.totalFrames ? productionStatus.completedFrames / productionStatus.totalFrames : 0}/><span>{productionStatus.state}{productionStatus.etaSeconds != null ? ` · ETA ${Math.ceil(productionStatus.etaSeconds)}s` : ""}</span><small>{productionStatus.error ?? productionStatus.manifestPath}</small></div>}</section>
+      </div><button className="primary-action" disabled={!project || !audioPath || productionBusy} onClick={() => project && run(() => enqueueProductionRender(project, audioPath, production))}>Render complete video</button>
+      {productionStatus && <div className="production-status"><progress max="1" value={productionStatus.totalFrames ? productionStatus.completedFrames / productionStatus.totalFrames : 0}/><span>{productionStatus.state}{productionStatus.etaSeconds != null ? ` · ETA ${Math.ceil(productionStatus.etaSeconds)}s` : ""}</span><small>{productionStatus.error ?? productionStatus.manifestPath ?? productionStatus.outputPath}</small><div className="production-actions"><button disabled={!productionComplete} onClick={() => run(openProductionOutput)}>Open</button><button disabled={!productionComplete} onClick={() => run(openProductionFolder)}>Folder</button><button className="danger" disabled={!productionActive} onClick={() => run(cancelProductionRender)}>Cancel</button></div></div>}</section>
       <section className="export-card"><h2>Preview renders</h2><p>Create a final-quality still at the playhead or render the selected timeline range.</p>
         <button disabled={!project || !audioPath} onClick={() => project && run(async () => { await enqueuePreview("still", project, audioPath, stats?.frameIndex ?? 0, (stats?.frameIndex ?? 0) + 1, true); setPreviewJobs(await queryPreviewJobs()); })}>Queue 4K still</button>
         <button disabled={!project || !audioPath} onClick={() => project && run(async () => { await enqueuePreview("slice", project, audioPath, Math.round(sliceRange[0] * project.fps), Math.round(sliceRange[1] * project.fps), useFinalSliceSettings); setPreviewJobs(await queryPreviewJobs()); })}>Queue timeline slice</button>

@@ -41,10 +41,12 @@ struct Job {
     project: ProjectV1,
     audio_path: PathBuf,
     settings: ProductionSettings,
+    cancellation: CancellationToken,
 }
 pub struct ProductionQueue {
     sender: mpsc::Sender<Job>,
     status: Arc<Mutex<ProductionStatus>>,
+    cancellation: Mutex<Option<CancellationToken>>,
 }
 
 impl ProductionQueue {
@@ -59,7 +61,11 @@ impl ProductionQueue {
             .name("rustique-production-render".into())
             .spawn(move || run(receiver, worker_status))
             .map_err(|error| format!("failed to start production render queue: {error}"))?;
-        Ok(Self { sender, status })
+        Ok(Self {
+            sender,
+            status,
+            cancellation: Mutex::new(None),
+        })
     }
     pub fn enqueue(
         &self,
@@ -72,9 +78,14 @@ impl ProductionQueue {
             .status
             .lock()
             .map_err(|_| "production status lock is poisoned")?;
-        if status.state == "queued" || status.state == "rendering" {
+        if matches!(status.state.as_str(), "queued" | "rendering" | "cancelling") {
             return Err("a production render is already active".into());
         }
+        let cancellation = CancellationToken::default();
+        *self
+            .cancellation
+            .lock()
+            .map_err(|_| "production cancellation lock is poisoned")? = Some(cancellation.clone());
         *status = ProductionStatus {
             state: "queued".into(),
             output_path: Some(settings.output_path.clone()),
@@ -86,6 +97,7 @@ impl ProductionQueue {
                 project,
                 audio_path,
                 settings,
+                cancellation,
             })
             .map_err(|_| "production render worker stopped".into())
     }
@@ -94,6 +106,60 @@ impl ProductionQueue {
             .lock()
             .map(|value| value.clone())
             .map_err(|_| "production status lock is poisoned".into())
+    }
+
+    pub fn cancel(&self) -> Result<(), String> {
+        let mut status = self
+            .status
+            .lock()
+            .map_err(|_| "production status lock is poisoned")?;
+        if status.state != "queued" && status.state != "rendering" {
+            return Err("no queued or rendering production job to cancel".into());
+        }
+        let cancellation = self
+            .cancellation
+            .lock()
+            .map_err(|_| "production cancellation lock is poisoned")?
+            .clone()
+            .ok_or("production job has no cancellation token")?;
+        cancellation.cancel();
+        status.state = "cancelling".into();
+        status.eta_seconds = None;
+        Ok(())
+    }
+
+    pub fn open_output(&self, folder: bool) -> Result<(), String> {
+        let status = self.status()?;
+        if status.state != "complete" {
+            return Err("production output can only be opened after rendering completes".into());
+        }
+        let output = status
+            .output_path
+            .ok_or("completed production render has no output path")?;
+        let resolved = output.canonicalize().map_err(|error| {
+            format!(
+                "failed to resolve production output {}: {error}",
+                output.display()
+            )
+        })?;
+        let target = if folder {
+            resolved
+                .parent()
+                .ok_or("production output has no parent directory")?
+        } else {
+            &resolved
+        };
+        Command::new("explorer.exe")
+            .arg(target)
+            .spawn()
+            .map_err(|error| {
+                format!(
+                    "failed to open production {} {}: {error}",
+                    if folder { "folder" } else { "output" },
+                    target.display()
+                )
+            })?;
+        Ok(())
     }
 }
 
@@ -185,12 +251,20 @@ fn run(receiver: mpsc::Receiver<Job>, status: Arc<Mutex<ProductionStatus>>) {
     let context = pollster::block_on(GpuContext::new(GpuConfig::default()))
         .map_err(|error| error.to_string());
     for job in receiver {
+        if job.cancellation.is_cancelled() {
+            set_cancelled(&status);
+            continue;
+        }
         let result = context
             .as_ref()
             .map_err(Clone::clone)
             .and_then(|context| render(context, &job, &status));
         if let Err(error) = result {
-            set_failed(&status, error);
+            if job.cancellation.is_cancelled() {
+                set_cancelled(&status);
+            } else {
+                set_failed(&status, error);
+            }
         }
     }
 }
@@ -222,6 +296,9 @@ fn render(
         "prores4444" => VideoCodec::ProRes4444,
         _ => return Err(format!("unknown production codec '{}'", job.settings.codec)),
     };
+    if job.cancellation.is_cancelled() {
+        return Err("production render was cancelled".into());
+    }
     if let Ok(mut current) = status.lock() {
         current.state = "rendering".into();
         current.total_frames = total;
@@ -245,7 +322,7 @@ fn render(
             codec,
             post_process: PostProcessConfig::for_quality(PostProcessQuality::Final),
         },
-        &CancellationToken::default(),
+        &job.cancellation,
         |progress| {
             let elapsed = started.elapsed().as_secs_f64();
             let rate = f64::from(progress.completed_frames) / elapsed.max(0.001);
@@ -359,6 +436,14 @@ fn set_failed(status: &Arc<Mutex<ProductionStatus>>, error: String) {
     if let Ok(mut current) = status.lock() {
         current.state = "failed".into();
         current.error = Some(error);
+        current.eta_seconds = None;
+    }
+}
+
+fn set_cancelled(status: &Arc<Mutex<ProductionStatus>>) {
+    if let Ok(mut current) = status.lock() {
+        current.state = "cancelled".into();
+        current.error = None;
         current.eta_seconds = None;
     }
 }

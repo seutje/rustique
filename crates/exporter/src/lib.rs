@@ -187,6 +187,8 @@ pub fn render_png_sequence(
                     reflection_intensity: project.liquid_chrome.reflection_intensity,
                     metallic: project.liquid_chrome.metallic,
                     surface_scale: project.liquid_chrome.surface_scale,
+                    base_color: project.liquid_chrome.base_color,
+                    surface_deformation: project.liquid_chrome.surface_deformation,
                 },
             )
         })

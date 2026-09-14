@@ -1,10 +1,12 @@
 {
-  "preset_version": 1, "id": "green-slime", "display_name": "Green Slime", "description": "Elastic noisy blob prototype",
+  "preset_version": 1, "id": "green-slime", "display_name": "Green Slime", "description": "Irregular reflective wet slime globule",
+  "render_mode": "liquid_chrome",
+  "liquid_chrome": { "environment_preset": "milky_way", "roughness": 0.1, "reflection_intensity": 1.15, "metallic": 0.0, "surface_scale": 1.18, "base_color": [0.025, 0.52, 0.075], "surface_deformation": 0.1 },
   "particle_system": { "count": 120000, "substeps": 3, "emitter": { "type": "burst", "count": 120000, "frame": 0, "respawn": "loop" } },
   "forces": [ { "type": "directional_noise", "strength": 0.22, "frequency": 3.0 }, { "type": "point_attractor", "position": [0.0, -0.2, 0.0], "strength": 0.12 }, { "type": "sphere_constraint", "center": [0.0, 0.0, 0.0], "radius": 0.85, "bounce": 0.35 } ],
   "camera": { "position": [0.0, 0.15, 2.8], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 42.0, "mode": "static", "drift_amplitude": [0.03, 0.03, 0.02], "shake_amplitude": 0.025 },
-  "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 5.0, "background": [0.0, 0.015, 0.002, 1.0] },
-  "macros": [ { "id": "viscosity", "label": "Viscosity", "target": "force_strength_scale", "minimum": 0.2, "maximum": 2.0, "default": 1.0 }, { "id": "globule_size", "label": "Globule Size", "target": "particle_size", "minimum": 2.0, "maximum": 10.0, "default": 5.0 } ],
+  "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 5.0, "background": [0.002, 0.003, 0.004, 1.0] },
+  "macros": [ { "id": "wetness", "label": "Wetness", "target": "material_roughness", "minimum": 0.03, "maximum": 0.3, "default": 0.1 }, { "id": "irregularity", "label": "Irregularity", "target": "surface_deformation", "minimum": 0.0, "maximum": 0.18, "default": 0.1 } ],
   "recommended_mappings": [
     { "source": "transient", "target": "burst_emission", "amount": 75000.0, "offset": 45000.0, "minimum": 45000.0, "maximum": 120000.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.22 },
     { "source": "bass", "target": "gravity_strength", "amount": 1.5, "offset": 0.55, "minimum": 0.55, "maximum": 2.05, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.025, "release_seconds": 0.35 },

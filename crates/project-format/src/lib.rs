@@ -201,6 +201,12 @@ pub struct LiquidChromeV1 {
     pub metallic: f32,
     #[serde(default = "default_surface_scale")]
     pub surface_scale: f32,
+    /// Linear RGB body color used by non-metallic wet materials.
+    #[serde(default = "default_material_base_color")]
+    pub base_color: [f32; 3],
+    /// Deterministic low-frequency displacement applied to the implicit surface.
+    #[serde(default)]
+    pub surface_deformation: f32,
 }
 
 impl Default for LiquidChromeV1 {
@@ -212,6 +218,8 @@ impl Default for LiquidChromeV1 {
             reflection_intensity: default_reflection_intensity(),
             metallic: default_metallic(),
             surface_scale: default_surface_scale(),
+            base_color: default_material_base_color(),
+            surface_deformation: 0.0,
         }
     }
 }
@@ -229,6 +237,9 @@ const fn default_metallic() -> f32 {
 }
 const fn default_surface_scale() -> f32 {
     1.0
+}
+const fn default_material_base_color() -> [f32; 3] {
+    [0.22, 0.24, 0.27]
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -662,6 +673,12 @@ impl ProjectV1 {
             || material.reflection_intensity < 0.0
             || !material.surface_scale.is_finite()
             || material.surface_scale <= 0.0
+            || material
+                .base_color
+                .iter()
+                .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
+            || !material.surface_deformation.is_finite()
+            || !(0.0..=0.5).contains(&material.surface_deformation)
             || (material.environment.is_none() && material.environment_preset != "milky_way")
         {
             return Err(ProjectError::Validation(
@@ -898,6 +915,29 @@ mod tests {
             serde_json::from_str(include_str!("../../../examples/star-orbit.rustique.json"))
                 .unwrap();
         project.validate().unwrap();
+    }
+
+    #[test]
+    fn repository_green_slime_example_is_valid() {
+        let project = ProjectV1::load(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../..")
+                .join("examples/green-slime.rustique.json"),
+        )
+        .unwrap();
+        assert_eq!(project.particle_system.count, 120_000);
+        assert_eq!(project.render_mode, RenderModeV1::LiquidChrome);
+        for (actual, expected) in project
+            .liquid_chrome
+            .base_color
+            .iter()
+            .zip([0.025, 0.52, 0.075])
+        {
+            assert!((actual - expected).abs() < f32::EPSILON);
+        }
+        assert!((project.liquid_chrome.roughness - 0.08).abs() < f32::EPSILON);
+        assert!((project.liquid_chrome.surface_deformation - 0.12).abs() < f32::EPSILON);
+        assert_eq!(project.forces.len(), 3);
     }
 
     #[test]

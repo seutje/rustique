@@ -1473,6 +1473,8 @@ fn render_project_still(
                 reflection_intensity: material.reflection_intensity,
                 metallic: material.metallic,
                 surface_scale: material.surface_scale,
+                base_color: material.base_color,
+                surface_deformation: material.surface_deformation,
             },
         )
         .map_err(|error| format!("failed to create liquid chrome renderer: {error}"))?;

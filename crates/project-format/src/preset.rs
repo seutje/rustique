@@ -60,6 +60,8 @@ pub enum MacroTargetV1 {
     DollySpeed,
     CameraFov,
     CameraShake,
+    MaterialRoughness,
+    SurfaceDeformation,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -178,6 +180,8 @@ fn apply_macro(project: &mut ProjectV1, target: MacroTargetV1, value: f32) {
         MacroTargetV1::DollySpeed => project.camera.dolly_units_per_second = value,
         MacroTargetV1::CameraFov => project.camera.vertical_fov_degrees = value,
         MacroTargetV1::CameraShake => project.camera.shake_amplitude = value,
+        MacroTargetV1::MaterialRoughness => project.liquid_chrome.roughness = value,
+        MacroTargetV1::SurfaceDeformation => project.liquid_chrome.surface_deformation = value,
     }
 }
 

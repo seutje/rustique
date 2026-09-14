@@ -559,6 +559,8 @@ Make visual systems data-driven and composable.
   - [x] Nebula
   - [x] Liquid Chrome prototype
   - [x] Green Slime prototype
+    - Uses the shared implicit-surface material renderer with green dielectric
+      body color, wet reflections, and deterministic surface deformation.
   - [x] Water Droplets prototype
 - [x] Ensure presets reuse common engine systems where possible
 

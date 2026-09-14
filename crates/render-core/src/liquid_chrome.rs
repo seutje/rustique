@@ -23,6 +23,8 @@ pub struct LiquidChromeConfig {
     pub reflection_intensity: f32,
     pub metallic: f32,
     pub surface_scale: f32,
+    pub base_color: [f32; 3],
+    pub surface_deformation: f32,
 }
 impl Default for LiquidChromeConfig {
     fn default() -> Self {
@@ -32,6 +34,8 @@ impl Default for LiquidChromeConfig {
             reflection_intensity: 1.35,
             metallic: 1.0,
             surface_scale: 1.0,
+            base_color: [0.22, 0.24, 0.27],
+            surface_deformation: 0.0,
         }
     }
 }
@@ -57,6 +61,8 @@ struct Params {
     reflection: f32,
     metallic: f32,
     surface_scale: f32,
+    surface_deformation: f32,
+    base_color: [f32; 3],
     _pad: f32,
 }
 
@@ -67,6 +73,8 @@ pub struct LiquidChromeRenderer {
     width: u32,
     height: u32,
     metallic: f32,
+    base_color: [f32; 3],
+    surface_deformation: f32,
 }
 
 impl LiquidChromeRenderer {
@@ -133,6 +141,8 @@ impl LiquidChromeRenderer {
                     reflection: config.reflection_intensity,
                     metallic: config.metallic,
                     surface_scale: config.surface_scale,
+                    surface_deformation: config.surface_deformation,
+                    base_color: config.base_color,
                     _pad: 0.0,
                 }),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
@@ -235,6 +245,8 @@ impl LiquidChromeRenderer {
             width,
             height,
             metallic: config.metallic,
+            base_color: config.base_color,
+            surface_deformation: config.surface_deformation,
         })
     }
 
@@ -265,6 +277,8 @@ impl LiquidChromeRenderer {
                 reflection: reflection.max(0.0),
                 metallic: self.metallic,
                 surface_scale: surface_scale.max(0.05),
+                surface_deformation: self.surface_deformation.clamp(0.0, 0.5),
+                base_color: self.base_color,
                 _pad: 0.0,
             }),
         );

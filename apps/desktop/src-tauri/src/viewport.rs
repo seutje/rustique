@@ -402,8 +402,13 @@ async fn render_loop(
                 let count = quality
                     .particle_count(project.particle_system.count, hardware_limit)
                     .max(1);
-                let mut renderer = ParticleRenderer::new(&context, count, project.seed)
-                    .map_err(|error| error.to_string())?;
+                let mut renderer = ParticleRenderer::new_with_initialization(
+                    &context,
+                    count,
+                    project.seed,
+                    project.particle_system.initialization,
+                )
+                .map_err(|error| error.to_string())?;
                 renderer
                     .set_forces(&context, &project.forces)
                     .map_err(|error| error.to_string())?;

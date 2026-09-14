@@ -1567,8 +1567,13 @@ fn render_project_still(
         );
         return Ok(());
     }
-    let mut renderer = ParticleRenderer::new(context, project.particle_system.count, project.seed)
-        .map_err(|error| format!("failed to create particle renderer: {error}"))?;
+    let mut renderer = ParticleRenderer::new_with_initialization(
+        context,
+        project.particle_system.count,
+        project.seed,
+        project.particle_system.initialization,
+    )
+    .map_err(|error| format!("failed to create particle renderer: {error}"))?;
     renderer
         .set_forces(context, &project.forces)
         .map_err(|error| format!("failed to configure project forces: {error}"))?;
@@ -1726,9 +1731,13 @@ fn render_scene_layer(
             .map_err(|error| format!("failed to render layer '{}': {error}", layer.name))
         }
         RenderModeV1::Particles => {
-            let mut renderer =
-                ParticleRenderer::new(context, scaled_count, project.seed ^ hash_name(&layer.name))
-                    .map_err(|error| format!("failed to create layer '{}': {error}", layer.name))?;
+            let mut renderer = ParticleRenderer::new_with_initialization(
+                context,
+                scaled_count,
+                project.seed ^ hash_name(&layer.name),
+                layer.particle_system.initialization,
+            )
+            .map_err(|error| format!("failed to create layer '{}': {error}", layer.name))?;
             renderer
                 .set_forces(context, &layer.forces)
                 .map_err(|error| format!("failed to configure layer '{}': {error}", layer.name))?;

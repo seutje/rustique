@@ -18,6 +18,19 @@ pub struct Particle {
     pub params: [f32; 4],
 }
 
+/// Deterministic frame-zero particle distribution.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ParticleInitialization {
+    #[default]
+    Volume,
+    GalacticDisk {
+        radius: f32,
+        thickness: f32,
+        lifetime_seconds: f32,
+    },
+}
+
 /// Fixed offline simulation timing, independent of preview refresh rate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SimulationTiming {
@@ -35,6 +48,14 @@ pub enum Force {
     },
     PointAttractor {
         position: [f32; 3],
+        strength: f32,
+    },
+    /// Point attractor whose position follows a deterministic orbit in the XY plane.
+    OrbitingPointAttractor {
+        center: [f32; 3],
+        orbit_radius: f32,
+        orbit_degrees_per_second: f32,
+        phase_degrees: f32,
         strength: f32,
     },
     PointRepulsor {
@@ -158,6 +179,22 @@ impl From<&Force> for GpuForce {
                 strength,
                 frequency,
             } => Self::new(7, [strength, frequency, 0.0, 0.0], [0.0; 4]),
+            Force::OrbitingPointAttractor {
+                center,
+                orbit_radius,
+                orbit_degrees_per_second,
+                phase_degrees,
+                strength,
+            } => Self::new(
+                8,
+                extend(center, strength),
+                [
+                    orbit_radius,
+                    orbit_degrees_per_second.to_radians(),
+                    phase_degrees.to_radians(),
+                    0.0,
+                ],
+            ),
         }
     }
 }
@@ -226,21 +263,62 @@ const _: () = assert!(align_of::<Particle>() == 4);
 /// Increasing quality by increasing `count` preserves all existing particles.
 #[must_use]
 pub fn initialize_particles(count: u32, seed: u64) -> Vec<Particle> {
+    initialize_particles_with(count, seed, ParticleInitialization::Volume)
+}
+
+/// Creates a stable prefix using a selected deterministic distribution.
+#[must_use]
+pub fn initialize_particles_with(
+    count: u32,
+    seed: u64,
+    initialization: ParticleInitialization,
+) -> Vec<Particle> {
     (0..count)
         .map(|index| {
-            let x = signed_unit(hash(seed, index, 0));
-            let y = signed_unit(hash(seed, index, 1));
-            let z = signed_unit(hash(seed, index, 2));
-            let velocity_scale = 0.05 + unit(hash(seed, index, 3)) * 0.15;
-            let z_velocity = signed_unit(hash(seed, index, 8)) * velocity_scale;
+            let (position, velocity, lifetime) = match initialization {
+                ParticleInitialization::Volume => {
+                    let x = signed_unit(hash(seed, index, 0));
+                    let y = signed_unit(hash(seed, index, 1));
+                    let z = signed_unit(hash(seed, index, 2));
+                    let tangential_speed = 0.05 + unit(hash(seed, index, 3)) * 0.15;
+                    (
+                        [x * 0.85, y * 0.85, z * 0.85],
+                        [
+                            -y * tangential_speed,
+                            x * tangential_speed,
+                            signed_unit(hash(seed, index, 8)) * tangential_speed,
+                        ],
+                        5.0,
+                    )
+                }
+                ParticleInitialization::GalacticDisk {
+                    radius,
+                    thickness,
+                    lifetime_seconds,
+                } => {
+                    let radial = unit(hash(seed, index, 0)).sqrt() * radius;
+                    let angle = unit(hash(seed, index, 1)) * std::f32::consts::TAU;
+                    let (sin, cos) = angle.sin_cos();
+                    let tangential_speed = 0.08 + unit(hash(seed, index, 3)) * 0.08;
+                    (
+                        [radial * cos, radial * sin, signed_unit(hash(seed, index, 2)) * thickness],
+                        [
+                            -sin * tangential_speed,
+                            cos * tangential_speed,
+                            signed_unit(hash(seed, index, 8)) * 0.005,
+                        ],
+                        lifetime_seconds,
+                    )
+                }
+            };
             Particle {
                 position_age: [
-                    x * 0.85,
-                    y * 0.85,
-                    z * 0.85,
+                    position[0],
+                    position[1],
+                    position[2],
                     unit(hash(seed, index, 4)) * 5.0,
                 ],
-                velocity_lifetime: [-y * velocity_scale, x * velocity_scale, z_velocity, 5.0],
+                velocity_lifetime: [velocity[0], velocity[1], velocity[2], lifetime],
                 color: [
                     0.35 + unit(hash(seed, index, 5)) * 0.65,
                     0.45 + unit(hash(seed, index, 6)) * 0.55,
@@ -344,5 +422,42 @@ mod tests {
         assert!(json.contains("point_attractor"));
         assert_eq!(serde_json::from_str::<Force>(&json).unwrap(), force);
         assert_eq!(size_of::<GpuForce>(), 48);
+    }
+
+    #[test]
+    fn galactic_disk_initialization_is_flat_and_long_lived() {
+        let particles = initialize_particles_with(
+            128,
+            42,
+            ParticleInitialization::GalacticDisk {
+                radius: 0.8,
+                thickness: 0.04,
+                lifetime_seconds: 30.0,
+            },
+        );
+        assert!(particles.iter().all(|particle| {
+            particle.position_age[2].abs() <= 0.04
+                && (particle.velocity_lifetime[3] - 30.0).abs() < f32::EPSILON
+                && particle.position_age[0].hypot(particle.position_age[1]) <= 0.8
+        }));
+    }
+
+    #[test]
+    fn orbiting_attractor_serializes_and_encodes_orbit_parameters() {
+        let force = Force::OrbitingPointAttractor {
+            center: [0.0, 0.0, 0.0],
+            orbit_radius: 0.35,
+            orbit_degrees_per_second: 45.0,
+            phase_degrees: 180.0,
+            strength: 0.06,
+        };
+        let json = serde_json::to_string(&force).unwrap();
+        assert!(json.contains("orbiting_point_attractor"));
+        assert_eq!(serde_json::from_str::<Force>(&json).unwrap(), force);
+
+        let gpu = GpuForce::from(&force);
+        assert_eq!(gpu.kind[0], 8);
+        assert!((gpu.secondary[1] - 45.0_f32.to_radians()).abs() < f32::EPSILON);
+        assert!((gpu.secondary[2] - std::f32::consts::PI).abs() < f32::EPSILON);
     }
 }

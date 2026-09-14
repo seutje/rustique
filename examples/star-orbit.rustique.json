@@ -7,12 +7,15 @@
   "particle_system": {
     "count": 100000,
     "substeps": 2,
-    "emitter": { "type": "burst", "count": 100000, "frame": 0, "respawn": "loop" }
+    "emitter": { "type": "burst", "count": 100000, "frame": 0, "respawn": "loop" },
+    "initialization": { "type": "galactic_disk", "radius": 0.82, "thickness": 0.035, "lifetime_seconds": 30.0 }
   },
   "forces": [
-    { "type": "point_attractor", "position": [0.0, 0.0, 0.0], "strength": 0.08 },
-    { "type": "vortex", "center": [0.0, 0.0, 0.0], "strength": 0.2 },
-    { "type": "drag", "coefficient": 0.02 }
+    { "type": "point_attractor", "position": [0.0, 0.0, 0.0], "strength": 0.05 },
+    { "type": "orbiting_point_attractor", "center": [0.0, 0.0, 0.0], "orbit_radius": 0.42, "orbit_degrees_per_second": 32.0, "phase_degrees": 0.0, "strength": 0.025 },
+    { "type": "orbiting_point_attractor", "center": [0.0, 0.0, 0.0], "orbit_radius": 0.42, "orbit_degrees_per_second": 32.0, "phase_degrees": 180.0, "strength": 0.025 },
+    { "type": "vortex", "center": [0.0, 0.0, 0.0], "strength": 0.12 },
+    { "type": "drag", "coefficient": 0.15 }
   ],
   "camera": {
     "position": [0.0, 0.0, 3.0],
@@ -36,7 +39,8 @@
     "background": [0.0, 0.0, 0.0, 1.0]
   },
   "modulation_mappings": [
-    { "source": "bass", "target": "gravity_strength", "amount": 0.12, "offset": 0.04, "minimum": 0.0, "maximum": 0.3, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.02, "release_seconds": 0.3 },
+    { "source": "sub", "target": "gravity_strength", "amount": 1.65, "offset": 0.55, "minimum": 0.55, "maximum": 2.2, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.015, "release_seconds": 0.28 },
+    { "source": "sub", "target": "particle_size", "amount": 4.0, "offset": 1.4, "minimum": 1.4, "maximum": 5.4, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.16 },
     { "source": "highs", "target": "brightness", "amount": 1.0, "offset": 0.5, "minimum": 0.0, "maximum": 2.0, "polarity": "normal", "curve": "linear", "attack_seconds": 0.01, "release_seconds": 0.15 },
     { "source": "transient", "target": "burst_emission", "amount": 5000.0, "offset": 0.0, "minimum": 0.0, "maximum": 5000.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.1 },
     { "source": "bass", "target": "camera_fov", "amount": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "polarity": "normal", "curve": "linear", "attack_seconds": 0.04, "release_seconds": 0.3 },
@@ -50,8 +54,5 @@
     "source": "../profiles/analysis/techno.json",
     "overrides": {}
   },
-  "reaction_profile": {
-    "source": "../profiles/reaction/punchy.json",
-    "overrides": { "release_seconds": 0.2 }
-  }
+  "reaction_profile": null
 }

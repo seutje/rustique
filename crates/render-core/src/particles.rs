@@ -1,7 +1,10 @@
 use std::{path::Path, sync::mpsc, time::Instant};
 
 use bytemuck::{Pod, Zeroable};
-use simulation::{Force, GpuForce, Particle, SimulationTiming, initialize_particles};
+use simulation::{
+    Force, GpuForce, Particle, ParticleInitialization, SimulationTiming, initialize_particles,
+    initialize_particles_with,
+};
 use thiserror::Error;
 use wgpu::util::DeviceExt;
 
@@ -95,6 +98,7 @@ pub struct ParticleRenderer {
     source_index: usize,
     timing: Option<TimingResources>,
     seed: u64,
+    initialization: ParticleInitialization,
     timeline_frame: u32,
     force_count: u32,
 }
@@ -120,6 +124,24 @@ impl ParticleRenderer {
     ) -> Result<Self, ParticleRenderError> {
         let particles = initialize_particles(particle_count, seed);
         Self::new_with_particles(context, &particles, seed)
+    }
+
+    /// Allocates deterministic particle state using a project-selected distribution.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an empty set or a storage allocation beyond the
+    /// selected adapter's limits.
+    pub fn new_with_initialization(
+        context: &GpuContext,
+        particle_count: u32,
+        seed: u64,
+        initialization: ParticleInitialization,
+    ) -> Result<Self, ParticleRenderError> {
+        let particles = initialize_particles_with(particle_count, seed, initialization);
+        let mut renderer = Self::new_with_particles(context, &particles, seed)?;
+        renderer.initialization = initialization;
+        Ok(renderer)
     }
 
     /// Allocates particle state supplied by an asset/shape target generator.
@@ -283,6 +305,7 @@ impl ParticleRenderer {
             source_index: 0,
             timing: create_timing_resources(context),
             seed,
+            initialization: ParticleInitialization::default(),
             timeline_frame: 0,
             force_count: 0,
         })
@@ -300,7 +323,8 @@ impl ParticleRenderer {
 
     /// Restores both ping-pong buffers to their deterministic frame-zero state.
     pub fn reset(&mut self, context: &GpuContext) {
-        let particles = initialize_particles(self.particle_count, self.seed);
+        let particles =
+            initialize_particles_with(self.particle_count, self.seed, self.initialization);
         for buffer in &self.buffers {
             context
                 .queue

@@ -243,6 +243,8 @@ pub struct ParticleSystemV1 {
     pub count: u32,
     pub substeps: u32,
     pub emitter: Emitter,
+    #[serde(default)]
+    pub initialization: simulation::ParticleInitialization,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -558,6 +560,22 @@ impl ProjectV1 {
                 "particle count and substeps must be greater than zero".into(),
             ));
         }
+        if let simulation::ParticleInitialization::GalacticDisk {
+            radius,
+            thickness,
+            lifetime_seconds,
+        } = self.particle_system.initialization
+            && (!radius.is_finite()
+                || radius <= 0.0
+                || !thickness.is_finite()
+                || thickness < 0.0
+                || !lifetime_seconds.is_finite()
+                || lifetime_seconds <= 5.0)
+        {
+            return Err(ProjectError::Validation(
+                "galactic disk radius must be positive, thickness non-negative, and lifetime greater than five seconds".into(),
+            ));
+        }
         if self.render_defaults.width == 0 || self.render_defaults.height == 0 {
             return Err(ProjectError::Validation(
                 "render dimensions must be greater than zero".into(),
@@ -782,6 +800,7 @@ mod tests {
                     frame: 0,
                     respawn: RespawnPolicy::Loop,
                 },
+                initialization: simulation::ParticleInitialization::default(),
             },
             forces: vec![Force::Drag { coefficient: 0.1 }],
             camera: CameraV1 {

@@ -147,7 +147,14 @@ pub fn render_png_sequence(
         post_process,
     )?;
     let mut renderer = (project.render_mode == RenderModeV1::Particles)
-        .then(|| ParticleRenderer::new(context, project.particle_system.count, project.seed))
+        .then(|| {
+            ParticleRenderer::new_with_initialization(
+                context,
+                project.particle_system.count,
+                project.seed,
+                project.particle_system.initialization,
+            )
+        })
         .transpose()?;
     if let Some(renderer) = &mut renderer {
         renderer.set_forces(context, &project.forces)?;

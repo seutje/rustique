@@ -186,6 +186,7 @@ fn scale_forces(forces: &mut [Force], scale: f32) {
         match force {
             Force::Gravity { acceleration } => acceleration.iter_mut().for_each(|v| *v *= scale),
             Force::PointAttractor { strength, .. }
+            | Force::OrbitingPointAttractor { strength, .. }
             | Force::PointRepulsor { strength, .. }
             | Force::Vortex { strength, .. }
             | Force::DirectionalNoise { strength, .. }
@@ -241,5 +242,36 @@ mod tests {
         };
         preset.apply(&mut project, &overrides).unwrap();
         assert_eq!(project.particle_system.count, 250_000);
+    }
+
+    #[test]
+    fn star_system_has_three_wells_and_sub_reactivity() {
+        let project =
+            ProjectV1::load(repository_path("examples/star-orbit.rustique.json")).unwrap();
+        assert_eq!(
+            project
+                .forces
+                .iter()
+                .filter(|force| matches!(force, Force::PointAttractor { .. }))
+                .count(),
+            1
+        );
+        assert_eq!(
+            project
+                .forces
+                .iter()
+                .filter(|force| matches!(force, Force::OrbitingPointAttractor { .. }))
+                .count(),
+            2
+        );
+        assert!(project.modulation_mappings.iter().any(|mapping| {
+            mapping.source == crate::ModulationSource::Sub
+                && mapping.target == crate::ModulationTarget::GravityStrength
+                && mapping.minimum > 0.0
+        }));
+        assert!(project.modulation_mappings.iter().any(|mapping| {
+            mapping.source == crate::ModulationSource::Sub
+                && mapping.target == crate::ModulationTarget::ParticleSize
+        }));
     }
 }

@@ -58,7 +58,9 @@ fn update(@builtin(global_invocation_id) id: vec3<u32>) {
             velocity += force.primary.xyz * frame.force_scale * frame.delta_time;
         } else if (force.kind.x == 1u || force.kind.x == 2u) {
             let offset = force.primary.xyz - particle.position_age.xyz;
-            let distance_squared = max(dot(offset, offset), 0.0001);
+            // Soften the singularity so close passes bend into an orbit instead of
+            // launching particles into the simulation boundary.
+            let distance_squared = max(dot(offset, offset), 0.01);
             let direction = offset * inverseSqrt(distance_squared);
             let polarity = select(-1.0, 1.0, force.kind.x == 1u);
             velocity += direction * force.primary.w * frame.force_scale * polarity / distance_squared * frame.delta_time;
@@ -76,6 +78,15 @@ fn update(@builtin(global_invocation_id) id: vec3<u32>) {
             let p = particle.position_age.xyz * force.primary.y + vec3<f32>(frame.simulation_time);
             let curl = vec3<f32>(cos(p.y) - cos(p.z), cos(p.z) - cos(p.x), cos(p.x) - cos(p.y));
             velocity += curl * force.primary.x * frame.force_scale * frame.delta_time;
+        } else if (force.kind.x == 8u) {
+            // secondary: orbit radius, radians/second, phase radians, unused.
+            let angle = force.secondary.y * frame.simulation_time + force.secondary.z;
+            let well_position = force.primary.xyz
+                + vec3<f32>(cos(angle), sin(angle), 0.0) * force.secondary.x;
+            let offset = well_position - particle.position_age.xyz;
+            let distance_squared = max(dot(offset, offset), 0.01);
+            let direction = offset * inverseSqrt(distance_squared);
+            velocity += direction * force.primary.w * frame.force_scale / distance_squared * frame.delta_time;
         }
     }
     particle.velocity_lifetime = vec4<f32>(velocity, particle.velocity_lifetime.w);

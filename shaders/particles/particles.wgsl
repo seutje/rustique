@@ -20,7 +20,8 @@ struct FrameUniforms {
     force_scale: f32,
     brightness: f32,
     active_particle_count: u32,
-    _padding: u32,
+    confine_to_box: u32,
+    _padding: vec2<u32>,
 }
 
 struct Force {
@@ -63,7 +64,15 @@ fn update(@builtin(global_invocation_id) id: vec3<u32>) {
             let distance_squared = max(dot(offset, offset), 0.01);
             let direction = offset * inverseSqrt(distance_squared);
             let polarity = select(-1.0, 1.0, force.kind.x == 1u);
-            velocity += direction * force.primary.w * frame.force_scale * polarity / distance_squared * frame.delta_time;
+            let distance = sqrt(distance_squared);
+            let long_range = force.secondary.y * max(distance - 1.0, 0.0);
+            let acceleration = max(force.primary.w / distance_squared, force.secondary.x) + long_range;
+            velocity += direction * acceleration * frame.force_scale * polarity * frame.delta_time;
+            if (force.kind.x == 1u && distance > 1.0) {
+                let outward_velocity = max(dot(velocity, -direction), 0.0);
+                let damping = clamp(force.secondary.z * (distance - 1.0) * frame.delta_time, 0.0, 1.0);
+                velocity += direction * outward_velocity * damping;
+            }
         } else if (force.kind.x == 3u) {
             let offset = particle.position_age.xyz - force.primary.xyz;
             let tangent = normalize(vec3<f32>(-offset.y, offset.x, 0.0) + vec3<f32>(0.00001, 0.0, 0.0));
@@ -106,9 +115,11 @@ fn update(@builtin(global_invocation_id) id: vec3<u32>) {
             }
         }
     }
-    if (particle.position_age.x < -1.0 || particle.position_age.x > 1.0) { particle.velocity_lifetime.x *= -1.0; }
-    if (particle.position_age.y < -1.0 || particle.position_age.y > 1.0) { particle.velocity_lifetime.y *= -1.0; }
-    if (particle.position_age.z < -1.0 || particle.position_age.z > 1.0) { particle.velocity_lifetime.z *= -1.0; }
+    if (frame.confine_to_box != 0u) {
+        if (particle.position_age.x < -1.0 || particle.position_age.x > 1.0) { particle.velocity_lifetime.x *= -1.0; }
+        if (particle.position_age.y < -1.0 || particle.position_age.y > 1.0) { particle.velocity_lifetime.y *= -1.0; }
+        if (particle.position_age.z < -1.0 || particle.position_age.z > 1.0) { particle.velocity_lifetime.z *= -1.0; }
+    }
     if (particle.position_age.w >= particle.velocity_lifetime.w) {
         let generation = frame.frame_index + 1u;
         let base = index ^ frame.simulation_seed ^ generation * 0x9e3779b9u;

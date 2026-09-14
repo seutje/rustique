@@ -249,6 +249,10 @@ mod tests {
         let project =
             ProjectV1::load(repository_path("examples/star-orbit.rustique.json")).unwrap();
         assert_eq!(
+            project.particle_system.boundary,
+            simulation::ParticleBoundary::Unbounded
+        );
+        assert_eq!(
             project
                 .forces
                 .iter()

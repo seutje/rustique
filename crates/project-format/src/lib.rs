@@ -245,6 +245,8 @@ pub struct ParticleSystemV1 {
     pub emitter: Emitter,
     #[serde(default)]
     pub initialization: simulation::ParticleInitialization,
+    #[serde(default)]
+    pub boundary: simulation::ParticleBoundary,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -801,6 +803,7 @@ mod tests {
                     respawn: RespawnPolicy::Loop,
                 },
                 initialization: simulation::ParticleInitialization::default(),
+                boundary: simulation::ParticleBoundary::default(),
             },
             forces: vec![Force::Drag { coefficient: 0.1 }],
             camera: CameraV1 {

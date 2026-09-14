@@ -2,8 +2,8 @@ use std::{path::Path, sync::mpsc, time::Instant};
 
 use bytemuck::{Pod, Zeroable};
 use simulation::{
-    Force, GpuForce, Particle, ParticleInitialization, SimulationTiming, initialize_particles,
-    initialize_particles_with,
+    Force, GpuForce, Particle, ParticleBoundary, ParticleInitialization, SimulationTiming,
+    initialize_particles, initialize_particles_with,
 };
 use thiserror::Error;
 use wgpu::util::DeviceExt;
@@ -33,7 +33,8 @@ pub struct FrameUniforms {
     pub force_scale: f32,
     pub brightness: f32,
     pub active_particle_count: u32,
-    padding: [u32; 3],
+    pub confine_to_box: u32,
+    padding: [u32; 2],
 }
 
 const _: () = assert!(size_of::<FrameUniforms>() == 128);
@@ -99,6 +100,7 @@ pub struct ParticleRenderer {
     timing: Option<TimingResources>,
     seed: u64,
     initialization: ParticleInitialization,
+    boundary: ParticleBoundary,
     timeline_frame: u32,
     force_count: u32,
 }
@@ -137,10 +139,12 @@ impl ParticleRenderer {
         particle_count: u32,
         seed: u64,
         initialization: ParticleInitialization,
+        boundary: ParticleBoundary,
     ) -> Result<Self, ParticleRenderError> {
         let particles = initialize_particles_with(particle_count, seed, initialization);
         let mut renderer = Self::new_with_particles(context, &particles, seed)?;
         renderer.initialization = initialization;
+        renderer.boundary = boundary;
         Ok(renderer)
     }
 
@@ -306,6 +310,7 @@ impl ParticleRenderer {
             timing: create_timing_resources(context),
             seed,
             initialization: ParticleInitialization::default(),
+            boundary: ParticleBoundary::default(),
             timeline_frame: 0,
             force_count: 0,
         })
@@ -429,7 +434,8 @@ impl ParticleRenderer {
                         .active_particle_count
                         .unwrap_or(self.particle_count)
                         .min(self.particle_count),
-                    padding: [0; 3],
+                    confine_to_box: u32::from(self.boundary == ParticleBoundary::Box),
+                    padding: [0; 2],
                 };
                 context
                     .queue
@@ -475,7 +481,8 @@ impl ParticleRenderer {
                 .active_particle_count
                 .unwrap_or(self.particle_count)
                 .min(self.particle_count),
-            padding: [0; 3],
+            confine_to_box: u32::from(self.boundary == ParticleBoundary::Box),
+            padding: [0; 2],
         };
         context
             .queue
@@ -566,7 +573,8 @@ impl ParticleRenderer {
                 .active_particle_count
                 .unwrap_or(self.particle_count)
                 .min(self.particle_count),
-            padding: [0; 3],
+            confine_to_box: 1,
+            padding: [0; 2],
         };
         context
             .queue
@@ -670,7 +678,8 @@ impl ParticleRenderer {
             force_scale: 1.0,
             brightness: 1.0,
             active_particle_count: self.particle_count,
-            padding: [0; 3],
+            confine_to_box: 1,
+            padding: [0; 2],
         };
         context
             .queue

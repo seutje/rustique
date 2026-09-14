@@ -407,6 +407,7 @@ async fn render_loop(
                     count,
                     project.seed,
                     project.particle_system.initialization,
+                    project.particle_system.boundary,
                 )
                 .map_err(|error| error.to_string())?;
                 renderer

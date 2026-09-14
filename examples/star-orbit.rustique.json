@@ -8,24 +8,25 @@
     "count": 100000,
     "substeps": 2,
     "emitter": { "type": "burst", "count": 100000, "frame": 0, "respawn": "loop" },
-    "initialization": { "type": "galactic_disk", "radius": 0.82, "thickness": 0.035, "lifetime_seconds": 30.0 }
+    "initialization": { "type": "galactic_disk", "radius": 0.82, "thickness": 0.035, "lifetime_seconds": 30.0 },
+    "boundary": "unbounded"
   },
   "forces": [
-    { "type": "point_attractor", "position": [0.0, 0.0, 0.0], "strength": 0.05 },
-    { "type": "orbiting_point_attractor", "center": [0.0, 0.0, 0.0], "orbit_radius": 0.42, "orbit_degrees_per_second": 32.0, "phase_degrees": 0.0, "strength": 0.025 },
-    { "type": "orbiting_point_attractor", "center": [0.0, 0.0, 0.0], "orbit_radius": 0.42, "orbit_degrees_per_second": 32.0, "phase_degrees": 180.0, "strength": 0.025 },
-    { "type": "vortex", "center": [0.0, 0.0, 0.0], "strength": 0.12 },
-    { "type": "drag", "coefficient": 0.15 }
+    { "type": "point_attractor", "position": [0.0, 0.0, 0.0], "strength": 0.10, "minimum_acceleration": 0.02, "long_range_strength": 0.08, "long_range_drag": 0.5 },
+    { "type": "orbiting_point_attractor", "center": [0.0, 0.0, 0.0], "orbit_radius": 0.42, "orbit_degrees_per_second": 32.0, "phase_degrees": 0.0, "strength": 0.008 },
+    { "type": "orbiting_point_attractor", "center": [0.0, 0.0, 0.0], "orbit_radius": 0.42, "orbit_degrees_per_second": 32.0, "phase_degrees": 180.0, "strength": 0.008 },
+    { "type": "vortex", "center": [0.0, 0.0, 0.0], "strength": 0.01 },
+    { "type": "drag", "coefficient": 0.01 }
   ],
   "camera": {
-    "position": [0.0, 0.0, 3.0],
+    "position": [0.0, 0.0, 3.6],
     "target": [0.0, 0.0, 0.0],
     "vertical_fov_degrees": 45.0,
     "up": [0.0, 1.0, 0.0],
     "near_plane": 0.01,
     "far_plane": 1000.0,
     "mode": "orbit",
-    "orbit_degrees_per_second": 8.0,
+    "orbit_degrees_per_second": 1.5,
     "dolly_units_per_second": 0.0,
     "drift_amplitude": [0.03, 0.02, 0.03],
     "drift_frequency_hz": 0.07,
@@ -48,7 +49,7 @@
   ],
   "visual_preset": {
     "source": "../presets/star-system.json",
-    "overrides": { "macros": { "density": 100000.0, "orbit_speed": 8.0 } }
+    "overrides": { "macros": { "density": 100000.0, "orbit_speed": 1.5 } }
   },
   "analysis_profile": {
     "source": "../profiles/analysis/techno.json",

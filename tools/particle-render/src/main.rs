@@ -199,6 +199,9 @@ impl MotionPreset {
             Force::PointAttractor {
                 position: [0.0; 3],
                 strength: 0.08,
+                minimum_acceleration: 0.0,
+                long_range_strength: 0.0,
+                long_range_drag: 0.0,
             },
             Force::Vortex {
                 center: [0.0; 3],
@@ -1572,6 +1575,7 @@ fn render_project_still(
         project.particle_system.count,
         project.seed,
         project.particle_system.initialization,
+        project.particle_system.boundary,
     )
     .map_err(|error| format!("failed to create particle renderer: {error}"))?;
     renderer
@@ -1736,6 +1740,7 @@ fn render_scene_layer(
                 scaled_count,
                 project.seed ^ hash_name(&layer.name),
                 layer.particle_system.initialization,
+                layer.particle_system.boundary,
             )
             .map_err(|error| format!("failed to create layer '{}': {error}", layer.name))?;
             renderer

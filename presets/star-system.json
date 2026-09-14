@@ -1,18 +1,18 @@
 {
   "preset_version": 1, "id": "star-system", "display_name": "Star System", "description": "Spiral galaxy shaped by a central gravity well and two orbiting gravity wells",
-  "particle_system": { "count": 100000, "substeps": 2, "emitter": { "type": "burst", "count": 100000, "frame": 0, "respawn": "loop" }, "initialization": { "type": "galactic_disk", "radius": 0.82, "thickness": 0.035, "lifetime_seconds": 30.0 } },
+  "particle_system": { "count": 100000, "substeps": 2, "emitter": { "type": "burst", "count": 100000, "frame": 0, "respawn": "loop" }, "initialization": { "type": "galactic_disk", "radius": 0.82, "thickness": 0.035, "lifetime_seconds": 30.0 }, "boundary": "unbounded" },
   "forces": [
-    { "type": "point_attractor", "position": [0.0, 0.0, 0.0], "strength": 0.05 },
-    { "type": "orbiting_point_attractor", "center": [0.0, 0.0, 0.0], "orbit_radius": 0.42, "orbit_degrees_per_second": 32.0, "phase_degrees": 0.0, "strength": 0.025 },
-    { "type": "orbiting_point_attractor", "center": [0.0, 0.0, 0.0], "orbit_radius": 0.42, "orbit_degrees_per_second": 32.0, "phase_degrees": 180.0, "strength": 0.025 },
-    { "type": "vortex", "center": [0.0, 0.0, 0.0], "strength": 0.12 },
-    { "type": "drag", "coefficient": 0.15 }
+    { "type": "point_attractor", "position": [0.0, 0.0, 0.0], "strength": 0.10, "minimum_acceleration": 0.02, "long_range_strength": 0.08, "long_range_drag": 0.5 },
+    { "type": "orbiting_point_attractor", "center": [0.0, 0.0, 0.0], "orbit_radius": 0.42, "orbit_degrees_per_second": 32.0, "phase_degrees": 0.0, "strength": 0.008 },
+    { "type": "orbiting_point_attractor", "center": [0.0, 0.0, 0.0], "orbit_radius": 0.42, "orbit_degrees_per_second": 32.0, "phase_degrees": 180.0, "strength": 0.008 },
+    { "type": "vortex", "center": [0.0, 0.0, 0.0], "strength": 0.01 },
+    { "type": "drag", "coefficient": 0.01 }
   ],
-  "camera": { "position": [0.0, 0.0, 3.0], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 45.0, "mode": "orbit", "orbit_degrees_per_second": 8.0, "drift_amplitude": [0.03, 0.02, 0.03], "fov_modulation_degrees": 8.0, "shake_amplitude": 0.03 },
+  "camera": { "position": [0.0, 0.0, 3.6], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 45.0, "mode": "orbit", "orbit_degrees_per_second": 1.5, "drift_amplitude": [0.03, 0.02, 0.03], "fov_modulation_degrees": 8.0, "shake_amplitude": 0.03 },
   "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 2.0, "background": [0.0, 0.0, 0.0, 1.0] },
   "macros": [
     { "id": "density", "label": "Density", "target": "particle_count", "minimum": 10000.0, "maximum": 1000000.0, "default": 100000.0 },
-    { "id": "orbit_speed", "label": "Orbit Speed", "target": "orbit_speed", "minimum": -30.0, "maximum": 30.0, "default": 8.0 }
+    { "id": "orbit_speed", "label": "Orbit Speed", "target": "orbit_speed", "minimum": -30.0, "maximum": 30.0, "default": 1.5 }
   ],
   "recommended_mappings": [
     { "source": "sub", "target": "gravity_strength", "amount": 1.65, "offset": 0.55, "minimum": 0.55, "maximum": 2.2, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.015, "release_seconds": 0.28 },

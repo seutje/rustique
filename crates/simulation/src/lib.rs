@@ -31,6 +31,14 @@ pub enum ParticleInitialization {
     },
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ParticleBoundary {
+    #[default]
+    Box,
+    Unbounded,
+}
+
 /// Fixed offline simulation timing, independent of preview refresh rate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SimulationTiming {
@@ -49,6 +57,12 @@ pub enum Force {
     PointAttractor {
         position: [f32; 3],
         strength: f32,
+        #[serde(default)]
+        minimum_acceleration: f32,
+        #[serde(default)]
+        long_range_strength: f32,
+        #[serde(default)]
+        long_range_drag: f32,
     },
     /// Point attractor whose position follows a deterministic orbit in the XY plane.
     OrbitingPointAttractor {
@@ -158,8 +172,23 @@ impl From<&Force> for GpuForce {
     fn from(force: &Force) -> Self {
         match *force {
             Force::Gravity { acceleration } => Self::new(0, extend(acceleration, 0.0), [0.0; 4]),
-            Force::PointAttractor { position, strength } => {
-                Self::new(1, extend(position, strength), [0.0; 4])
+            Force::PointAttractor {
+                position,
+                strength,
+                minimum_acceleration,
+                long_range_strength,
+                long_range_drag,
+            } => {
+                Self::new(
+                    1,
+                    extend(position, strength),
+                    [
+                        minimum_acceleration,
+                        long_range_strength,
+                        long_range_drag,
+                        0.0,
+                    ],
+                )
             }
             Force::PointRepulsor { position, strength } => {
                 Self::new(2, extend(position, strength), [0.0; 4])
@@ -299,7 +328,11 @@ pub fn initialize_particles_with(
                     let radial = unit(hash(seed, index, 0)).sqrt() * radius;
                     let angle = unit(hash(seed, index, 1)) * std::f32::consts::TAU;
                     let (sin, cos) = angle.sin_cos();
-                    let tangential_speed = 0.08 + unit(hash(seed, index, 3)) * 0.08;
+                    // Match the 0.1-strength central well used by the galaxy
+                    // preset, with slight deterministic variation for arm texture.
+                    let orbital_speed = (0.1 / radial.max(0.12)).sqrt().min(0.75);
+                    let tangential_speed =
+                        orbital_speed * (0.9 + unit(hash(seed, index, 3)) * 0.2);
                     (
                         [radial * cos, radial * sin, signed_unit(hash(seed, index, 2)) * thickness],
                         [
@@ -417,6 +450,9 @@ mod tests {
         let force = Force::PointAttractor {
             position: [1.0, 2.0, 3.0],
             strength: 0.5,
+            minimum_acceleration: 0.0,
+            long_range_strength: 0.0,
+            long_range_drag: 0.0,
         };
         let json = serde_json::to_string(&force).unwrap();
         assert!(json.contains("point_attractor"));

@@ -153,6 +153,7 @@ pub fn render_png_sequence(
                 project.particle_system.count,
                 project.seed,
                 project.particle_system.initialization,
+                project.particle_system.boundary,
             )
         })
         .transpose()?;

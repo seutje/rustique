@@ -143,6 +143,7 @@ pub fn export_video(
                 project.particle_system.count,
                 project.seed,
                 project.particle_system.initialization,
+                project.particle_system.boundary,
             )
         })
         .transpose()?;

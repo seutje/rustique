@@ -21,7 +21,9 @@ struct FrameUniforms {
     brightness: f32,
     active_particle_count: u32,
     confine_to_box: u32,
-    _padding: vec2<u32>,
+    initialization_mode: u32,
+    _padding: u32,
+    initialization_params: vec4<f32>,
 }
 
 struct Force {
@@ -123,13 +125,32 @@ fn update(@builtin(global_invocation_id) id: vec3<u32>) {
     if (particle.position_age.w >= particle.velocity_lifetime.w) {
         let generation = frame.frame_index + 1u;
         let base = index ^ frame.simulation_seed ^ generation * 0x9e3779b9u;
-        let x = random_unit(base) * 2.0 - 1.0;
-        let y = random_unit(base ^ 0x68bc21ebu) * 2.0 - 1.0;
-        let z = random_unit(base ^ 0x967a889bu) * 2.0 - 1.0;
-        let speed = 0.05 + random_unit(base ^ 0x02e5be93u) * 0.15;
-        let z_velocity = (random_unit(base ^ 0xd3a2646cu) * 2.0 - 1.0) * speed;
-        particle.position_age = vec4<f32>(vec3<f32>(x, y, z) * 0.85, 0.0);
-        particle.velocity_lifetime = vec4<f32>(-y * speed, x * speed, z_velocity, 5.0);
+        if (frame.initialization_mode == 1u) {
+            let radial = sqrt(random_unit(base)) * frame.initialization_params.x;
+            let angle = random_unit(base ^ 0x68bc21ebu) * 6.28318530718;
+            let radial_direction = vec2<f32>(cos(angle), sin(angle));
+            let z = (random_unit(base ^ 0x967a889bu) * 2.0 - 1.0)
+                * frame.initialization_params.y;
+            let orbital_speed = min(sqrt(0.1 / max(radial, 0.12)), 0.75);
+            let speed_variation = 0.9 + random_unit(base ^ 0x02e5be93u) * 0.2;
+            let speed = orbital_speed * speed_variation;
+            let z_velocity = (random_unit(base ^ 0xd3a2646cu) * 2.0 - 1.0) * 0.005;
+            particle.position_age = vec4<f32>(radial_direction * radial, z, 0.0);
+            particle.velocity_lifetime = vec4<f32>(
+                -radial_direction.y * speed,
+                radial_direction.x * speed,
+                z_velocity,
+                frame.initialization_params.z,
+            );
+        } else {
+            let x = random_unit(base) * 2.0 - 1.0;
+            let y = random_unit(base ^ 0x68bc21ebu) * 2.0 - 1.0;
+            let z = random_unit(base ^ 0x967a889bu) * 2.0 - 1.0;
+            let speed = 0.05 + random_unit(base ^ 0x02e5be93u) * 0.15;
+            let z_velocity = (random_unit(base ^ 0xd3a2646cu) * 2.0 - 1.0) * speed;
+            particle.position_age = vec4<f32>(vec3<f32>(x, y, z) * 0.85, 0.0);
+            particle.velocity_lifetime = vec4<f32>(-y * speed, x * speed, z_velocity, 5.0);
+        }
     }
     particles_out[index] = particle;
 }

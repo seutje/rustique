@@ -34,10 +34,12 @@ pub struct FrameUniforms {
     pub brightness: f32,
     pub active_particle_count: u32,
     pub confine_to_box: u32,
-    padding: [u32; 2],
+    pub initialization_mode: u32,
+    padding: u32,
+    pub initialization_params: [f32; 4],
 }
 
-const _: () = assert!(size_of::<FrameUniforms>() == 128);
+const _: () = assert!(size_of::<FrameUniforms>() == 144);
 
 #[derive(Clone, Copy, Debug)]
 pub struct BenchmarkConfig {
@@ -409,6 +411,8 @@ impl ParticleRenderer {
         clear: RgbaColor,
     ) -> Result<(), ParticleRenderError> {
         let reset_history = frame_index < self.timeline_frame || frame_index == 0;
+        let (initialization_mode, initialization_params) =
+            initialization_uniforms(self.initialization);
         if frame_index < self.timeline_frame {
             self.reset(context);
         }
@@ -435,7 +439,9 @@ impl ParticleRenderer {
                         .unwrap_or(self.particle_count)
                         .min(self.particle_count),
                     confine_to_box: u32::from(self.boundary == ParticleBoundary::Box),
-                    padding: [0; 2],
+                    initialization_mode,
+                    padding: 0,
+                    initialization_params,
                 };
                 context
                     .queue
@@ -482,7 +488,9 @@ impl ParticleRenderer {
                 .unwrap_or(self.particle_count)
                 .min(self.particle_count),
             confine_to_box: u32::from(self.boundary == ParticleBoundary::Box),
-            padding: [0; 2],
+            initialization_mode,
+            padding: 0,
+            initialization_params,
         };
         context
             .queue
@@ -554,6 +562,8 @@ impl ParticleRenderer {
         config: BenchmarkConfig,
     ) -> Result<FrameTiming, ParticleRenderError> {
         let started = Instant::now();
+        let (initialization_mode, initialization_params) =
+            initialization_uniforms(self.initialization);
         let uniforms = FrameUniforms {
             view_projection: config
                 .view_projection
@@ -573,8 +583,10 @@ impl ParticleRenderer {
                 .active_particle_count
                 .unwrap_or(self.particle_count)
                 .min(self.particle_count),
-            confine_to_box: 1,
-            padding: [0; 2],
+            confine_to_box: u32::from(self.boundary == ParticleBoundary::Box),
+            initialization_mode,
+            padding: 0,
+            initialization_params,
         };
         context
             .queue
@@ -664,6 +676,8 @@ impl ParticleRenderer {
         fps: f32,
         clear: RgbaColor,
     ) -> Result<Vec<u8>, ParticleRenderError> {
+        let (initialization_mode, initialization_params) =
+            initialization_uniforms(self.initialization);
         let uniforms = FrameUniforms {
             view_projection: aspect_matrix(target.dimensions()),
             frame_index,
@@ -678,8 +692,10 @@ impl ParticleRenderer {
             force_scale: 1.0,
             brightness: 1.0,
             active_particle_count: self.particle_count,
-            confine_to_box: 1,
-            padding: [0; 2],
+            confine_to_box: u32::from(self.boundary == ParticleBoundary::Box),
+            initialization_mode,
+            padding: 0,
+            initialization_params,
         };
         context
             .queue
@@ -764,6 +780,17 @@ fn storage_entry(
 fn seed_u32(seed: u64) -> u32 {
     let bytes = seed.to_le_bytes();
     u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
+}
+
+fn initialization_uniforms(initialization: ParticleInitialization) -> (u32, [f32; 4]) {
+    match initialization {
+        ParticleInitialization::Volume => (0, [0.0; 4]),
+        ParticleInitialization::GalacticDisk {
+            radius,
+            thickness,
+            lifetime_seconds,
+        } => (1, [radius, thickness, lifetime_seconds, 0.0]),
+    }
 }
 
 fn create_timing_resources(context: &GpuContext) -> Option<TimingResources> {

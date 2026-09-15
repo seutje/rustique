@@ -17,10 +17,10 @@ use project_format::{
     evaluate_automation, evaluate_mappings,
 };
 use render_core::{
-    BenchmarkConfig, GpuContext, LiquidChromeConfig, LiquidChromeRenderer, OffscreenRenderTarget,
-    ParticleRenderer, PostProcessConfig, RgbaColor, VolumetricConfig, VolumetricModulation,
-    VolumetricQuality, VolumetricRenderer, WaterDropletConfig, WaterDropletModulation,
-    WaterDropletRenderer,
+    BenchmarkConfig, FlockingModulation, GpuContext, LiquidChromeConfig, LiquidChromeRenderer,
+    OffscreenRenderTarget, ParticleRenderer, PostProcessConfig, RgbaColor, VolumetricConfig,
+    VolumetricModulation, VolumetricQuality, VolumetricRenderer, WaterDropletConfig,
+    WaterDropletModulation, WaterDropletRenderer,
 };
 use simulation::SimulationTiming;
 
@@ -149,6 +149,7 @@ pub fn export_video(
         .transpose()?;
     if let Some(renderer) = &mut renderer {
         renderer.set_forces(context, &project.forces)?;
+        renderer.set_flocking_config(context, project.particle_system.flocking.as_ref());
     }
     let volume_quality = if config.post_process.trails {
         VolumetricQuality::Final
@@ -315,6 +316,14 @@ pub fn export_video(
                             config.width,
                             config.height,
                         )),
+                        flocking: FlockingModulation {
+                            separation: parameters.flocking_separation,
+                            cohesion: parameters.flocking_cohesion,
+                            turbulence: parameters.flocking_turbulence,
+                            speed: parameters.flocking_speed,
+                            randomness: parameters.flocking_randomness,
+                            impulse: parameters.flocking_impulse,
+                        },
                     },
                     clear,
                 )

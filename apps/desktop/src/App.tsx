@@ -15,7 +15,7 @@ import {
 import { useEditorStore, type ProjectData } from "./store";
 
 const presets = ["Star System", "Nebula", "Liquid Chrome", "Green Slime", "Water Droplets"];
-const presetFiles: Record<string, string> = { "Star System": "presets/star-system.json", Nebula: "presets/nebula.json", "Liquid Chrome": "presets/liquid-chrome.json", "Green Slime": "presets/green-slime.json", "Water Droplets": "presets/water-droplets.json" };
+const presetFiles: Record<string, string> = { "Star System": "presets/star-system.json", Nebula: "presets/nebula.json", "Liquid Chrome": "presets/liquid-chrome.json", "Green Slime": "presets/green-slime.json", "Water Droplets": "presets/water-droplets.json", "Cinematic Murmuration": "presets/murmuration.json" };
 type View = "editor" | "exporter";
 type Run = (action: () => Promise<void>) => void;
 

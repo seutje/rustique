@@ -219,6 +219,7 @@ mod tests {
             "liquid-chrome",
             "green-slime",
             "water-droplets",
+            "murmuration",
         ];
         let presets: Vec<_> = names
             .iter()
@@ -226,7 +227,7 @@ mod tests {
                 VisualPresetV1::load(repository_path(&format!("presets/{name}.json"))).unwrap()
             })
             .collect();
-        assert_eq!(presets.len(), 5);
+        assert_eq!(presets.len(), 6);
         assert_ne!(presets[0].forces, presets[1].forces);
         assert_ne!(presets[1].render_defaults, presets[2].render_defaults);
         assert!(
@@ -306,5 +307,28 @@ mod tests {
             mapping.source == crate::ModulationSource::Bass
                 && mapping.target == crate::ModulationTarget::HueShift
         }));
+    }
+
+    #[test]
+    fn murmuration_uses_field_flocking_and_audio_motion_targets() {
+        let preset = VisualPresetV1::load(repository_path("presets/murmuration.json")).unwrap();
+        let flocking = preset.particle_system.flocking.as_ref().unwrap();
+        assert!(flocking.enabled && flocking.murmuration.enabled);
+        assert!(flocking.attractors.len() > 1);
+        for target in [
+            crate::ModulationTarget::FlockingSeparation,
+            crate::ModulationTarget::FlockingCohesion,
+            crate::ModulationTarget::FlockingTurbulence,
+            crate::ModulationTarget::FlockingSpeed,
+            crate::ModulationTarget::FlockingRandomness,
+            crate::ModulationTarget::FlockingImpulse,
+        ] {
+            assert!(
+                preset
+                    .recommended_mappings
+                    .iter()
+                    .any(|mapping| mapping.target == target)
+            );
+        }
     }
 }

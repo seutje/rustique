@@ -289,11 +289,18 @@ Build a reusable library of GPU force passes.
 - [x] Add respawn policies
 - [x] Make force parameters serializable
 - [x] Allow multiple force passes in a system
+- [x] Add GPU aggregate-field flocking with modular separation, alignment, and cohesion
+  - A fixed-point 3D density/position/velocity field keeps neighborhood work O(N)
+    and remains fully GPU-resident; see `docs/FLOCKING.md`.
+- [x] Add cinematic murmuration states, attractors/repulsors, and audio-reactive steering
+  - `presets/murmuration.json` smoothly cycles six behavior profiles and maps
+    bass, low mids, mids, highs, RMS, and transients to motion parameters.
 
 ## Acceptance Criteria
 
 - [x] A star-orbit style simulation is possible
 - [x] A swirling field simulation is possible
+- [x] A large flock can split, stream, expand, and reconverge without particle readback
 - [x] Force parameters are data-driven
 - [x] No force requires UI-specific code
 

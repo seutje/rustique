@@ -53,6 +53,12 @@ pub enum ModulationTarget {
     DropletSize,
     DropletRefraction,
     DropletGravity,
+    FlockingSeparation,
+    FlockingCohesion,
+    FlockingTurbulence,
+    FlockingSpeed,
+    FlockingRandomness,
+    FlockingImpulse,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -115,6 +121,12 @@ pub struct ModulatedParameters {
     pub droplet_size: f32,
     pub droplet_refraction: f32,
     pub droplet_gravity: f32,
+    pub flocking_separation: f32,
+    pub flocking_cohesion: f32,
+    pub flocking_turbulence: f32,
+    pub flocking_speed: f32,
+    pub flocking_randomness: f32,
+    pub flocking_impulse: f32,
 }
 
 impl Default for ModulatedParameters {
@@ -136,6 +148,12 @@ impl Default for ModulatedParameters {
             droplet_size: 1.0,
             droplet_refraction: 1.0,
             droplet_gravity: 1.0,
+            flocking_separation: 1.0,
+            flocking_cohesion: 1.0,
+            flocking_turbulence: 1.0,
+            flocking_speed: 1.0,
+            flocking_randomness: 1.0,
+            flocking_impulse: 0.0,
         }
     }
 }
@@ -164,6 +182,20 @@ impl ModulatedParameters {
                     self.droplet_refraction = value.output_value;
                 }
                 ModulationTarget::DropletGravity => self.droplet_gravity = value.output_value,
+                ModulationTarget::FlockingSeparation => {
+                    self.flocking_separation = value.output_value;
+                }
+                ModulationTarget::FlockingCohesion => {
+                    self.flocking_cohesion = value.output_value;
+                }
+                ModulationTarget::FlockingTurbulence => {
+                    self.flocking_turbulence = value.output_value;
+                }
+                ModulationTarget::FlockingSpeed => self.flocking_speed = value.output_value,
+                ModulationTarget::FlockingRandomness => {
+                    self.flocking_randomness = value.output_value;
+                }
+                ModulationTarget::FlockingImpulse => self.flocking_impulse = value.output_value,
             }
         }
     }

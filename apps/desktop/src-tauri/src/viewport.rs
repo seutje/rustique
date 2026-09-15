@@ -413,6 +413,7 @@ async fn render_loop(
                 renderer
                     .set_forces(&context, &project.forces)
                     .map_err(|error| error.to_string())?;
+                renderer.set_flocking_config(&context, project.particle_system.flocking.as_ref());
                 let target = OffscreenRenderTarget::new_with_post_process(
                     &context,
                     width,
@@ -522,6 +523,14 @@ async fn render_loop(
                         hue_shift: parameters.hue_shift,
                         active_particle_count: None,
                         view_projection: Some(view_projection),
+                        flocking: render_core::FlockingModulation {
+                            separation: parameters.flocking_separation,
+                            cohesion: parameters.flocking_cohesion,
+                            turbulence: parameters.flocking_turbulence,
+                            speed: parameters.flocking_speed,
+                            randomness: parameters.flocking_randomness,
+                            impulse: parameters.flocking_impulse,
+                        },
                         ..BenchmarkConfig::default()
                     },
                     RgbaColor::new(background[0], background[1], background[2], background[3]),

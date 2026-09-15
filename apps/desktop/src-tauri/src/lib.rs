@@ -72,11 +72,12 @@ async fn load_project(
         )
     })?;
     let macros = load_macro_schema(&load_path, &project)?;
+    let parameters = parameter_schema(&project);
     viewport.set_project(project.clone())?;
     Ok(EditorProject {
         path: resolved_path,
         project,
-        parameters: parameter_schema(),
+        parameters,
         macros,
     })
 }
@@ -97,8 +98,9 @@ fn load_macro_schema(
         .map_err(|error| error.to_string())
 }
 
-fn parameter_schema() -> Vec<ParameterSchema> {
-    vec![
+#[allow(clippy::too_many_lines)]
+fn parameter_schema(project: &ProjectV1) -> Vec<ParameterSchema> {
+    let mut schema = vec![
         ParameterSchema {
             path: "particle_system.count",
             label: "Particle count",
@@ -171,7 +173,249 @@ fn parameter_schema() -> Vec<ParameterSchema> {
             step: None,
             modulation_target: None,
         },
-    ]
+    ];
+    if project.particle_system.flocking.is_some() {
+        schema.extend([
+            ParameterSchema {
+                path: "particle_system.flocking.enabled",
+                label: "GPU flocking",
+                kind: "toggle",
+                minimum: None,
+                maximum: None,
+                step: None,
+                modulation_target: None,
+            },
+            numeric_parameter(
+                "particle_system.flocking.grid_resolution",
+                "Field grid resolution",
+                4.0,
+                1024.0,
+                1.0,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.separation_strength",
+                "Separation",
+                0.0,
+                5.0,
+                0.01,
+                Some("flocking_separation"),
+            ),
+            numeric_parameter(
+                "particle_system.flocking.alignment_strength",
+                "Alignment",
+                0.0,
+                5.0,
+                0.01,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.cohesion_strength",
+                "Cohesion",
+                0.0,
+                5.0,
+                0.01,
+                Some("flocking_cohesion"),
+            ),
+            numeric_parameter(
+                "particle_system.flocking.neighborhood_radius",
+                "Neighborhood radius",
+                0.01,
+                0.5,
+                0.005,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.noise_strength",
+                "Curl noise",
+                0.0,
+                5.0,
+                0.01,
+                Some("flocking_turbulence"),
+            ),
+            numeric_parameter(
+                "particle_system.flocking.noise_scale",
+                "Noise scale",
+                0.05,
+                20.0,
+                0.05,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.noise_evolution_speed",
+                "Noise evolution",
+                0.0,
+                5.0,
+                0.01,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.inertia",
+                "Inertia",
+                0.0,
+                1.0,
+                0.01,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.drag",
+                "Drag",
+                0.0,
+                5.0,
+                0.01,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.max_velocity",
+                "Maximum velocity",
+                0.01,
+                5.0,
+                0.01,
+                Some("flocking_speed"),
+            ),
+            numeric_parameter(
+                "particle_system.flocking.max_steering_force",
+                "Maximum steering",
+                0.01,
+                10.0,
+                0.01,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.attractor_strength",
+                "Attractor strength",
+                0.0,
+                5.0,
+                0.01,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.attractor_radius",
+                "Attractor radius",
+                0.01,
+                2.0,
+                0.01,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.repulsor_strength",
+                "Repulsor strength",
+                0.0,
+                10.0,
+                0.01,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.repulsor_radius",
+                "Repulsor radius",
+                0.01,
+                2.0,
+                0.01,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.swarm_compactness",
+                "Swarm compactness",
+                0.05,
+                2.0,
+                0.01,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.randomness",
+                "Individual variation",
+                0.0,
+                2.0,
+                0.005,
+                Some("flocking_randomness"),
+            ),
+            numeric_parameter(
+                "particle_system.flocking.boundary_avoidance_strength",
+                "Boundary avoidance",
+                0.0,
+                10.0,
+                0.05,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.boundary_margin",
+                "Boundary margin",
+                0.01,
+                1.0,
+                0.01,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.directional_bias.0",
+                "Flow bias X",
+                -2.0,
+                2.0,
+                0.01,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.directional_bias.1",
+                "Flow bias Y",
+                -2.0,
+                2.0,
+                0.01,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.directional_bias.2",
+                "Flow bias Z",
+                -2.0,
+                2.0,
+                0.01,
+                None,
+            ),
+            ParameterSchema {
+                path: "particle_system.flocking.murmuration.enabled",
+                label: "Murmuration states",
+                kind: "toggle",
+                minimum: None,
+                maximum: None,
+                step: None,
+                modulation_target: None,
+            },
+            numeric_parameter(
+                "particle_system.flocking.murmuration.state_duration_seconds",
+                "State duration",
+                1.0,
+                60.0,
+                0.1,
+                None,
+            ),
+            numeric_parameter(
+                "particle_system.flocking.murmuration.transition_duration_seconds",
+                "State transition",
+                0.0,
+                30.0,
+                0.1,
+                None,
+            ),
+        ]);
+    }
+    schema
+}
+
+fn numeric_parameter(
+    path: &'static str,
+    label: &'static str,
+    minimum: f64,
+    maximum: f64,
+    step: f64,
+    modulation_target: Option<&'static str>,
+) -> ParameterSchema {
+    ParameterSchema {
+        path,
+        label,
+        kind: "number",
+        minimum: Some(minimum),
+        maximum: Some(maximum),
+        step: Some(step),
+        modulation_target,
+    }
 }
 
 #[tauri::command]

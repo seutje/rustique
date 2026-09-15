@@ -258,6 +258,9 @@ pub struct ParticleSystemV1 {
     pub initialization: simulation::ParticleInitialization,
     #[serde(default)]
     pub boundary: simulation::ParticleBoundary,
+    /// Optional O(N) GPU aggregate-field flocking simulation.
+    #[serde(default)]
+    pub flocking: Option<simulation::FlockingConfig>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -409,6 +412,68 @@ fn normalize(value: [f32; 3]) -> [f32; 3] {
     } else {
         [0.0, 0.0, 1.0]
     }
+}
+
+fn validate_flocking(config: Option<&simulation::FlockingConfig>) -> Result<(), ProjectError> {
+    let Some(config) = config else { return Ok(()) };
+    let scalars = [
+        config.separation_strength,
+        config.alignment_strength,
+        config.cohesion_strength,
+        config.neighborhood_radius,
+        config.noise_strength,
+        config.noise_scale,
+        config.noise_evolution_speed,
+        config.inertia,
+        config.drag,
+        config.max_velocity,
+        config.max_steering_force,
+        config.attractor_strength,
+        config.attractor_radius,
+        config.repulsor_strength,
+        config.repulsor_radius,
+        config.swarm_compactness,
+        config.randomness,
+        config.boundary_avoidance_strength,
+        config.boundary_margin,
+        config.murmuration.state_duration_seconds,
+        config.murmuration.transition_duration_seconds,
+    ];
+    let finite_vectors = config
+        .world_min
+        .iter()
+        .chain(config.world_max.iter())
+        .chain(config.directional_bias.iter())
+        .chain(config.attractors.iter().flatten())
+        .chain(config.repulsors.iter().flatten())
+        .all(|value| value.is_finite());
+    if config.grid_resolution < 4
+        || config.grid_resolution > 1024
+        || config.attractors.len() > 4
+        || config.repulsors.len() > 4
+        || !scalars.iter().all(|value| value.is_finite())
+        || !finite_vectors
+        || (0..3).any(|axis| config.world_max[axis] <= config.world_min[axis])
+        || config.neighborhood_radius <= 0.0
+        || config.noise_scale <= 0.0
+        || !(0.0..=1.0).contains(&config.inertia)
+        || config.drag < 0.0
+        || config.max_velocity <= 0.0
+        || config.max_steering_force <= 0.0
+        || config.attractor_radius <= 0.0
+        || config.repulsor_radius <= 0.0
+        || config.swarm_compactness <= 0.0
+        || config.boundary_margin <= 0.0
+        || config.murmuration.state_duration_seconds <= 0.0
+        || config.murmuration.transition_duration_seconds < 0.0
+        || config.murmuration.transition_duration_seconds
+            > config.murmuration.state_duration_seconds
+    {
+        return Err(ProjectError::Validation(
+            "flocking requires a 4..=1024 grid, finite non-negative forces, positive radii/limits, ordered bounds, at most four attractors/repulsors, and valid murmuration timing".into(),
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -573,6 +638,7 @@ impl ProjectV1 {
                 "particle count and substeps must be greater than zero".into(),
             ));
         }
+        validate_flocking(self.particle_system.flocking.as_ref())?;
         if let simulation::ParticleInitialization::GalacticDisk {
             radius,
             thickness,
@@ -722,6 +788,7 @@ impl ProjectV1 {
                     "scene layers require a name, opacity in 0..=1, positive quality scale, particle count, and substeps".into(),
                 ));
             }
+            validate_flocking(layer.particle_system.flocking.as_ref())?;
             for mapping in &layer.modulation_mappings {
                 let values = [
                     mapping.amount,
@@ -827,6 +894,7 @@ mod tests {
                 },
                 initialization: simulation::ParticleInitialization::default(),
                 boundary: simulation::ParticleBoundary::default(),
+                flocking: None,
             },
             forces: vec![Force::Drag { coefficient: 0.1 }],
             camera: CameraV1 {
@@ -938,6 +1006,31 @@ mod tests {
         assert!((project.liquid_chrome.roughness - 0.08).abs() < f32::EPSILON);
         assert!((project.liquid_chrome.surface_deformation - 0.12).abs() < f32::EPSILON);
         assert_eq!(project.forces.len(), 3);
+    }
+
+    #[test]
+    fn repository_murmuration_example_is_valid() {
+        let project = ProjectV1::load(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../..")
+                .join("examples/murmuration.rustique.json"),
+        )
+        .unwrap();
+        assert!(project.particle_system.flocking.is_some());
+    }
+
+    #[test]
+    fn flocking_accepts_1024_logical_grid_resolution() {
+        let mut project = sample();
+        let mut flocking = simulation::FlockingConfig {
+            grid_resolution: 1024,
+            ..simulation::FlockingConfig::default()
+        };
+        project.particle_system.flocking = Some(flocking.clone());
+        project.validate().unwrap();
+        flocking.grid_resolution = 1025;
+        project.particle_system.flocking = Some(flocking);
+        assert!(project.validate().is_err());
     }
 
     #[test]

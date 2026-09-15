@@ -1584,6 +1584,7 @@ fn render_project_still(
     renderer
         .set_forces(context, &project.forces)
         .map_err(|error| format!("failed to configure project forces: {error}"))?;
+    renderer.set_flocking_config(context, project.particle_system.flocking.as_ref());
     let project_fps = NonZeroU32::new(project.fps)
         .ok_or_else(|| "project FPS must be greater than zero".to_owned())?;
     let substeps = NonZeroU32::new(project.particle_system.substeps)
@@ -1749,6 +1750,7 @@ fn render_scene_layer(
             renderer
                 .set_forces(context, &layer.forces)
                 .map_err(|error| format!("failed to configure layer '{}': {error}", layer.name))?;
+            renderer.set_flocking_config(context, layer.particle_system.flocking.as_ref());
             let fps = NonZeroU32::new(project.fps).ok_or("project FPS must be positive")?;
             let substeps = NonZeroU32::new(layer.particle_system.substeps)
                 .ok_or("layer substeps must be positive")?;

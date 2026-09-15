@@ -43,6 +43,132 @@ pub enum ParticleBoundary {
     Unbounded,
 }
 
+/// GPU field approximation used by the cinematic flocking solver.
+///
+/// The solver accumulates density, position, and velocity into a coarse 3D
+/// grid. Particles sample adjacent cells instead of comparing themselves with
+/// every other particle, keeping the work linear in particle count.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FlockingConfig {
+    #[serde(default = "enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_grid_resolution")]
+    pub grid_resolution: u32,
+    #[serde(default = "default_world_min")]
+    pub world_min: [f32; 3],
+    #[serde(default = "default_world_max")]
+    pub world_max: [f32; 3],
+    pub separation_strength: f32,
+    pub alignment_strength: f32,
+    pub cohesion_strength: f32,
+    pub neighborhood_radius: f32,
+    pub noise_strength: f32,
+    pub noise_scale: f32,
+    pub noise_evolution_speed: f32,
+    pub inertia: f32,
+    pub drag: f32,
+    pub max_velocity: f32,
+    pub max_steering_force: f32,
+    pub attractor_strength: f32,
+    pub attractor_radius: f32,
+    #[serde(default)]
+    pub attractors: Vec<[f32; 3]>,
+    pub repulsor_strength: f32,
+    #[serde(default = "default_repulsor_radius")]
+    pub repulsor_radius: f32,
+    #[serde(default)]
+    pub repulsors: Vec<[f32; 3]>,
+    pub swarm_compactness: f32,
+    pub directional_bias: [f32; 3],
+    pub randomness: f32,
+    pub boundary_avoidance_strength: f32,
+    #[serde(default = "default_boundary_margin")]
+    pub boundary_margin: f32,
+    #[serde(default)]
+    pub murmuration: MurmurationConfig,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MurmurationConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_state_duration")]
+    pub state_duration_seconds: f32,
+    #[serde(default = "default_transition_duration")]
+    pub transition_duration_seconds: f32,
+}
+
+impl Default for MurmurationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            state_duration_seconds: default_state_duration(),
+            transition_duration_seconds: default_transition_duration(),
+        }
+    }
+}
+
+impl Default for FlockingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            grid_resolution: default_grid_resolution(),
+            world_min: default_world_min(),
+            world_max: default_world_max(),
+            separation_strength: 1.1,
+            alignment_strength: 0.8,
+            cohesion_strength: 0.55,
+            neighborhood_radius: 0.12,
+            noise_strength: 0.35,
+            noise_scale: 2.5,
+            noise_evolution_speed: 0.18,
+            inertia: 0.8,
+            drag: 0.08,
+            max_velocity: 0.75,
+            max_steering_force: 1.8,
+            attractor_strength: 0.28,
+            attractor_radius: 0.35,
+            attractors: vec![[0.0; 3]],
+            repulsor_strength: 2.5,
+            repulsor_radius: default_repulsor_radius(),
+            repulsors: Vec::new(),
+            swarm_compactness: 0.55,
+            directional_bias: [0.12, 0.0, 0.0],
+            randomness: 0.06,
+            boundary_avoidance_strength: 2.0,
+            boundary_margin: default_boundary_margin(),
+            murmuration: MurmurationConfig::default(),
+        }
+    }
+}
+
+const fn enabled() -> bool {
+    true
+}
+const fn default_grid_resolution() -> u32 {
+    32
+}
+const fn default_world_min() -> [f32; 3] {
+    [-1.0; 3]
+}
+const fn default_world_max() -> [f32; 3] {
+    [1.0; 3]
+}
+const fn default_repulsor_radius() -> f32 {
+    0.45
+}
+const fn default_boundary_margin() -> f32 {
+    0.22
+}
+const fn default_state_duration() -> f32 {
+    7.0
+}
+const fn default_transition_duration() -> f32 {
+    2.5
+}
+
 /// Fixed offline simulation timing, independent of preview refresh rate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SimulationTiming {
@@ -510,5 +636,18 @@ mod tests {
         assert_eq!(gpu.kind[0], 8);
         assert!((gpu.secondary[1] - 45.0_f32.to_radians()).abs() < f32::EPSILON);
         assert!((gpu.secondary[2] - std::f32::consts::PI).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn flocking_configuration_round_trips() {
+        let mut config = FlockingConfig::default();
+        config.murmuration.enabled = true;
+        config.attractors.push([0.5, 0.0, 0.0]);
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("separation_strength"));
+        assert_eq!(
+            serde_json::from_str::<FlockingConfig>(&json).unwrap(),
+            config
+        );
     }
 }

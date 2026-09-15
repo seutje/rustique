@@ -2,6 +2,7 @@
 
 mod camera;
 mod dispatch;
+mod flocking;
 mod fluid;
 mod gpu;
 mod layers;
@@ -17,6 +18,7 @@ mod volumetrics;
 mod water_droplets;
 
 pub use camera::PerspectiveCamera;
+pub use flocking::FlockingModulation;
 pub use fluid::{FluidConfig, FluidError, FluidFrameStats, FluidRenderer};
 pub use gpu::{BackendPreference, GpuConfig, GpuContext, GpuInfo, GpuInitError};
 pub use layers::{LayerBlendMode, composite_rgba8};

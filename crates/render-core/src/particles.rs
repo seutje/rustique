@@ -2,14 +2,16 @@ use std::{path::Path, sync::mpsc, time::Instant};
 
 use bytemuck::{Pod, Zeroable};
 use simulation::{
-    Force, GpuForce, Particle, ParticleBoundary, ParticleInitialization, SimulationTiming,
-    initialize_particles, initialize_particles_with,
+    FlockingConfig, Force, GpuForce, Particle, ParticleBoundary, ParticleInitialization,
+    SimulationTiming, initialize_particles, initialize_particles_with,
 };
 use thiserror::Error;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    GpuContext, OffscreenError, OffscreenRenderTarget, RgbaColor, dispatch::dispatch_dimensions,
+    GpuContext, OffscreenError, OffscreenRenderTarget, RgbaColor,
+    dispatch::dispatch_dimensions,
+    flocking::{FlockingModulation, FlockingResources},
     post_process::HDR_FORMAT,
 };
 
@@ -51,6 +53,7 @@ pub struct BenchmarkConfig {
     pub hue_shift: f32,
     pub active_particle_count: Option<u32>,
     pub view_projection: Option<[[f32; 4]; 4]>,
+    pub flocking: FlockingModulation,
 }
 
 impl Default for BenchmarkConfig {
@@ -63,6 +66,7 @@ impl Default for BenchmarkConfig {
             hue_shift: 0.0,
             active_particle_count: None,
             view_projection: None,
+            flocking: FlockingModulation::default(),
         }
     }
 }
@@ -108,6 +112,7 @@ pub struct ParticleRenderer {
     boundary: ParticleBoundary,
     timeline_frame: u32,
     force_count: u32,
+    flocking: Option<FlockingResources>,
 }
 
 struct TimingResources {
@@ -318,6 +323,7 @@ impl ParticleRenderer {
             boundary: ParticleBoundary::default(),
             timeline_frame: 0,
             force_count: 0,
+            flocking: None,
         })
     }
 
@@ -372,6 +378,13 @@ impl ParticleRenderer {
                 maximum: MAX_FORCE_COUNT,
             })?;
         Ok(())
+    }
+
+    /// Enables or disables the GPU aggregate-field flocking pass.
+    pub fn set_flocking_config(&mut self, context: &GpuContext, config: Option<&FlockingConfig>) {
+        self.flocking = config.cloned().and_then(|config| {
+            FlockingResources::new(context, &self.buffers, self.particle_count, config)
+        });
     }
 
     /// Deterministically seeks to and renders an offline timeline frame.
@@ -451,24 +464,42 @@ impl ParticleRenderer {
                 context
                     .queue
                     .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
+                let active_particle_count = uniforms.active_particle_count;
+                if let Some(flocking) = &self.flocking {
+                    flocking.prepare(
+                        context,
+                        self.particle_count,
+                        active_particle_count,
+                        uniforms.simulation_time,
+                        uniforms.delta_time,
+                        uniforms.simulation_seed,
+                        render_config.flocking,
+                    );
+                }
                 let mut encoder =
                     context
                         .device
                         .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                             label: Some("particle-fixed-step"),
                         });
+                let update_source = if let Some(flocking) = &self.flocking {
+                    flocking.encode(&mut encoder, self.source_index, self.particle_count);
+                    self.source_index ^ 1
+                } else {
+                    self.source_index
+                };
                 {
                     let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                         label: Some("particle-fixed-step-update"),
                         timestamp_writes: None,
                     });
                     pass.set_pipeline(&self.compute_pipeline);
-                    pass.set_bind_group(0, &self.bind_groups[self.source_index], &[]);
+                    pass.set_bind_group(0, &self.bind_groups[update_source], &[]);
                     let (groups_x, groups_y) = dispatch_dimensions(self.particle_count);
                     pass.dispatch_workgroups(groups_x, groups_y, 1);
                 }
                 context.queue.submit([encoder.finish()]);
-                self.source_index ^= 1;
+                self.source_index = update_source ^ 1;
             }
         }
         self.timeline_frame = frame_index;
@@ -599,12 +630,29 @@ impl ParticleRenderer {
         context
             .queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
+        if let Some(flocking) = &self.flocking {
+            flocking.prepare(
+                context,
+                self.particle_count,
+                uniforms.active_particle_count,
+                uniforms.simulation_time,
+                uniforms.delta_time,
+                uniforms.simulation_seed,
+                config.flocking,
+            );
+        }
         let view = target.view();
         let mut encoder = context
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("particle-benchmark-frame"),
             });
+        let update_source = if let Some(flocking) = &self.flocking {
+            flocking.encode(&mut encoder, self.source_index, self.particle_count);
+            self.source_index ^ 1
+        } else {
+            self.source_index
+        };
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("particle-benchmark-compute"),
@@ -617,7 +665,7 @@ impl ParticleRenderer {
                 }),
             });
             pass.set_pipeline(&self.compute_pipeline);
-            pass.set_bind_group(0, &self.bind_groups[self.source_index], &[]);
+            pass.set_bind_group(0, &self.bind_groups[update_source], &[]);
             let (groups_x, groups_y) = dispatch_dimensions(self.particle_count);
             pass.dispatch_workgroups(groups_x, groups_y, 1);
         }
@@ -643,7 +691,7 @@ impl ParticleRenderer {
                 occlusion_query_set: None,
             });
             pass.set_pipeline(&self.render_pipeline);
-            pass.set_bind_group(0, &self.bind_groups[self.source_index ^ 1], &[]);
+            pass.set_bind_group(0, &self.bind_groups[update_source ^ 1], &[]);
             pass.draw(0..self.particle_count.saturating_mul(6), 0..1);
         }
         if let Some(timing) = &self.timing {
@@ -652,7 +700,7 @@ impl ParticleRenderer {
         }
         let cpu_prepare_ms = started.elapsed().as_secs_f64() * 1000.0;
         context.queue.submit([encoder.finish()]);
-        self.source_index ^= 1;
+        self.source_index = update_source ^ 1;
         let (gpu_compute_ms, gpu_render_ms) = if let Some(timing) = &self.timing {
             let values = read_timestamps(context, &timing.readback)?;
             let period_ms = f64::from(context.queue.get_timestamp_period()) / 1_000_000.0;
@@ -709,19 +757,36 @@ impl ParticleRenderer {
         context
             .queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
+        if let Some(flocking) = &self.flocking {
+            flocking.prepare(
+                context,
+                self.particle_count,
+                self.particle_count,
+                uniforms.simulation_time,
+                uniforms.delta_time,
+                uniforms.simulation_seed,
+                FlockingModulation::default(),
+            );
+        }
         let view = target.view();
         let mut encoder = context
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("particle-frame"),
             });
+        let update_source = if let Some(flocking) = &self.flocking {
+            flocking.encode(&mut encoder, self.source_index, self.particle_count);
+            self.source_index ^ 1
+        } else {
+            self.source_index
+        };
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("particle-update"),
                 timestamp_writes: None,
             });
             pass.set_pipeline(&self.compute_pipeline);
-            pass.set_bind_group(0, &self.bind_groups[self.source_index], &[]);
+            pass.set_bind_group(0, &self.bind_groups[update_source], &[]);
             let (groups_x, groups_y) = dispatch_dimensions(self.particle_count);
             pass.dispatch_workgroups(groups_x, groups_y, 1);
         }
@@ -741,12 +806,12 @@ impl ParticleRenderer {
                 occlusion_query_set: None,
             });
             pass.set_pipeline(&self.render_pipeline);
-            pass.set_bind_group(0, &self.bind_groups[self.source_index ^ 1], &[]);
+            pass.set_bind_group(0, &self.bind_groups[update_source ^ 1], &[]);
             pass.draw(0..self.particle_count.saturating_mul(6), 0..1);
         }
         target.encode_readback(&mut encoder, frame_index == 0);
         context.queue.submit([encoder.finish()]);
-        self.source_index ^= 1;
+        self.source_index = update_source ^ 1;
         Ok(target.read_pixels(context)?)
     }
 

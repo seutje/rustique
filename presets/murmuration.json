@@ -1,0 +1,58 @@
+{
+  "preset_version": 1,
+  "id": "murmuration",
+  "display_name": "Cinematic Murmuration",
+  "description": "GPU field-driven flocking that flows through cohesive, streaming, vortex, expansion, split, and reconvergence states.",
+  "particle_system": {
+    "count": 500000,
+    "substeps": 2,
+    "emitter": { "type": "burst", "count": 500000, "frame": 0, "respawn": "loop" },
+    "initialization": { "type": "galactic_disk", "radius": 0.66, "thickness": 0.22, "lifetime_seconds": 120.0, "spawn_spread_seconds": 0.0, "lifetime_variation": 0.15 },
+    "boundary": "unbounded",
+    "flocking": {
+      "enabled": true,
+      "grid_resolution": 32,
+      "world_min": [-1.15, -0.8, -0.8],
+      "world_max": [1.15, 0.8, 0.8],
+      "separation_strength": 0.92,
+      "alignment_strength": 0.9,
+      "cohesion_strength": 1.05,
+      "neighborhood_radius": 0.13,
+      "noise_strength": 0.34,
+      "noise_scale": 3.1,
+      "noise_evolution_speed": 0.16,
+      "inertia": 0.82,
+      "drag": 0.12,
+      "max_velocity": 0.68,
+      "max_steering_force": 1.65,
+      "attractor_strength": 0.62,
+      "attractor_radius": 0.36,
+      "attractors": [[-0.42, 0.12, 0.08], [0.4, -0.1, -0.08], [0.0, 0.28, 0.12]],
+      "repulsor_strength": 2.8,
+      "repulsor_radius": 0.32,
+      "repulsors": [],
+      "swarm_compactness": 0.58,
+      "directional_bias": [0.055, 0.012, 0.0],
+      "randomness": 0.055,
+      "boundary_avoidance_strength": 2.4,
+      "boundary_margin": 0.24,
+      "murmuration": { "enabled": true, "state_duration_seconds": 7.5, "transition_duration_seconds": 2.8 }
+    }
+  },
+  "forces": [],
+  "camera": { "position": [0.0, 0.15, 3.15], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 42.0, "mode": "orbit", "orbit_degrees_per_second": 1.2, "drift_amplitude": [0.025, 0.018, 0.025], "drift_frequency_hz": 0.06, "fov_modulation_degrees": 4.0, "shake_amplitude": 0.012 },
+  "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 1.35, "background": [0.002, 0.004, 0.012, 1.0] },
+  "macros": [
+    { "id": "density", "label": "Density", "target": "particle_count", "minimum": 100000.0, "maximum": 2000000.0, "default": 500000.0 },
+    { "id": "particle_size", "label": "Particle Size", "target": "particle_size", "minimum": 0.7, "maximum": 3.0, "default": 1.35 }
+  ],
+  "recommended_mappings": [
+    { "source": "bass", "target": "flocking_separation", "amount": 1.6, "offset": 0.8, "minimum": 0.8, "maximum": 2.4, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.012, "release_seconds": 0.32 },
+    { "source": "low_mids", "target": "flocking_cohesion", "amount": 0.9, "offset": 0.65, "minimum": 0.65, "maximum": 1.55, "polarity": "normal", "curve": "linear", "attack_seconds": 0.08, "release_seconds": 0.5 },
+    { "source": "mids", "target": "flocking_turbulence", "amount": 1.8, "offset": 0.65, "minimum": 0.65, "maximum": 2.45, "polarity": "normal", "curve": "linear", "attack_seconds": 0.05, "release_seconds": 0.38 },
+    { "source": "rms", "target": "flocking_speed", "amount": 0.85, "offset": 0.55, "minimum": 0.55, "maximum": 1.4, "polarity": "normal", "curve": "linear", "attack_seconds": 0.09, "release_seconds": 0.45 },
+    { "source": "highs", "target": "flocking_randomness", "amount": 2.0, "offset": 0.55, "minimum": 0.55, "maximum": 2.55, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.025, "release_seconds": 0.18 },
+    { "source": "transient", "target": "flocking_impulse", "amount": 1.8, "offset": 0.0, "minimum": 0.0, "maximum": 1.8, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.34 },
+    { "source": "highs", "target": "brightness", "amount": 1.25, "offset": 0.65, "minimum": 0.65, "maximum": 1.9, "polarity": "normal", "curve": "linear", "attack_seconds": 0.025, "release_seconds": 0.2 }
+  ]
+}

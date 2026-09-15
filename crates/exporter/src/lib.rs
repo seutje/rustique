@@ -13,11 +13,11 @@ use project_format::{
     evaluate_mappings,
 };
 use render_core::{
-    BenchmarkConfig, GpuContext, LiquidChromeConfig, LiquidChromeError, LiquidChromeRenderer,
-    OffscreenError, OffscreenRenderTarget, ParticleRenderError, ParticleRenderer,
-    PerspectiveCamera, RgbaColor, VolumetricConfig, VolumetricModulation, VolumetricQuality,
-    VolumetricRenderer, WaterDropletConfig, WaterDropletError, WaterDropletModulation,
-    WaterDropletRenderer,
+    BenchmarkConfig, FlockingModulation, GpuContext, LiquidChromeConfig, LiquidChromeError,
+    LiquidChromeRenderer, OffscreenError, OffscreenRenderTarget, ParticleRenderError,
+    ParticleRenderer, PerspectiveCamera, RgbaColor, VolumetricConfig, VolumetricModulation,
+    VolumetricQuality, VolumetricRenderer, WaterDropletConfig, WaterDropletError,
+    WaterDropletModulation, WaterDropletRenderer,
 };
 use simulation::SimulationTiming;
 use std::{
@@ -159,6 +159,7 @@ pub fn render_png_sequence(
         .transpose()?;
     if let Some(renderer) = &mut renderer {
         renderer.set_forces(context, &project.forces)?;
+        renderer.set_flocking_config(context, project.particle_system.flocking.as_ref());
     }
     let volume_quality = if config.post_process.trails {
         VolumetricQuality::Final
@@ -247,6 +248,7 @@ pub fn render_png_sequence(
                 config.width,
                 config.height,
             )),
+            flocking: flocking_modulation(&parameters),
         };
         let clear = RgbaColor::new(background[0], background[1], background[2], background[3]);
         if frame < config.start_frame {
@@ -347,6 +349,17 @@ fn water_modulation(parameters: &ModulatedParameters) -> WaterDropletModulation 
         refraction: parameters.droplet_refraction,
         gravity: parameters.droplet_gravity,
         brightness: parameters.brightness,
+    }
+}
+
+fn flocking_modulation(parameters: &ModulatedParameters) -> FlockingModulation {
+    FlockingModulation {
+        separation: parameters.flocking_separation,
+        cohesion: parameters.flocking_cohesion,
+        turbulence: parameters.flocking_turbulence,
+        speed: parameters.flocking_speed,
+        randomness: parameters.flocking_randomness,
+        impulse: parameters.flocking_impulse,
     }
 }
 

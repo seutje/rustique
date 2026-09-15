@@ -4,7 +4,7 @@ import type { ActiveModulation } from "./native";
 import { LiveInput } from "./LiveInput";
 
 const sources: ModulationSource[] = ["sub", "bass", "low_mids", "mids", "high_mids", "highs", "rms", "transient", "spectral_centroid", "spectral_flux"];
-const targets: ModulationTarget[] = ["gravity_strength", "particle_size", "brightness", "hue_shift", "burst_emission", "camera_fov", "camera_shake", "material_roughness", "reflection_intensity", "surface_scale", "volume_density", "volume_motion", "droplet_density", "droplet_size", "droplet_refraction", "droplet_gravity"];
+const targets: ModulationTarget[] = ["gravity_strength", "particle_size", "brightness", "hue_shift", "burst_emission", "camera_fov", "camera_shake", "material_roughness", "reflection_intensity", "surface_scale", "volume_density", "volume_motion", "droplet_density", "droplet_size", "droplet_refraction", "droplet_gravity", "flocking_separation", "flocking_cohesion", "flocking_turbulence", "flocking_speed", "flocking_randomness", "flocking_impulse"];
 const analysisProfiles = [
   ["Techno", "../profiles/analysis/techno.json"],
   ["Drum & Bass", "../profiles/analysis/drum-and-bass.json"],
@@ -50,7 +50,7 @@ export function Inspector({ project, schema, macros, active, onChange }: Props) 
     <h3>Parameters</h3>
     {schema.map((item) => { const value = getPath(project, item.path); return <div className="parameter" key={item.path}><div className="parameter-title"><label>{item.label}</label>{item.modulationTarget && <button className="mod-button" title="Add modulation" onClick={() => addMapping(item.modulationTarget!)}>◇</button>}</div>
       {item.kind === "number" && <div className="number-control"><input type="range" min={item.minimum!} max={item.maximum!} step={item.step!} value={Number(value)} onChange={(e) => onChange(setPath(project, item.path, Number(e.target.value)))} /><input type="number" min={item.minimum!} max={item.maximum!} step={item.step!} value={Number(value)} onChange={(e) => onChange(setPath(project, item.path, Number(e.target.value)))} /></div>}
-      {item.kind === "toggle" && <input type="checkbox" checked={value === "orbit"} onChange={(e) => onChange(setPath(project, item.path, e.target.checked ? "orbit" : "static"))} />}
+      {item.kind === "toggle" && <input type="checkbox" checked={typeof value === "boolean" ? value : value === "orbit"} onChange={(e) => onChange(setPath(project, item.path, typeof value === "boolean" ? e.target.checked : e.target.checked ? "orbit" : "static"))} />}
       {item.kind === "color" && <input type="color" value={colorHex(value as number[])} onChange={(e) => onChange(setPath(project, item.path, hexChannels(e.target.value, (value as number[])[3])))} />}
     </div>; })}
     {macros.length > 0 && <><h3>Preset macros</h3>{macros.map((macro) => { const selection = project.visual_preset as { overrides?: { macros?: Record<string, number> } } | null; const value = selection?.overrides?.macros?.[macro.id] ?? macro.default; return <div className="parameter" key={macro.id}><label>{macro.label}</label><div className="number-control"><input type="range" min={macro.minimum} max={macro.maximum} value={value} onChange={(e) => updateMacro(macro, Number(e.target.value))}/><input type="number" min={macro.minimum} max={macro.maximum} value={value} onChange={(e) => updateMacro(macro, Number(e.target.value))}/></div></div>; })}</>}

@@ -41,7 +41,7 @@
   },
   "forces": [],
   "camera": { "position": [0.0, 0.15, 3.15], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 42.0, "mode": "orbit", "orbit_degrees_per_second": 1.2, "drift_amplitude": [0.025, 0.018, 0.025], "drift_frequency_hz": 0.06, "fov_modulation_degrees": 4.0, "shake_amplitude": 0.012 },
-  "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 1.35, "background": [0.002, 0.004, 0.012, 1.0] },
+  "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 1.35, "particle_depth_near": 2.35, "particle_depth_far": 3.95, "particle_depth_size_strength": 0.9, "particle_depth_brightness_strength": 0.48, "background": [0.002, 0.004, 0.012, 1.0] },
   "macros": [
     { "id": "density", "label": "Density", "target": "particle_count", "minimum": 100000.0, "maximum": 2000000.0, "default": 500000.0 },
     { "id": "particle_size", "label": "Particle Size", "target": "particle_size", "minimum": 0.7, "maximum": 3.0, "default": 1.35 }

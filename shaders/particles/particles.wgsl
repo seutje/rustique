@@ -25,6 +25,8 @@ struct FrameUniforms {
     _padding: u32,
     initialization_params: vec4<f32>,
     lifecycle_params: vec4<f32>,
+    // Camera-space near/far distances followed by size/brightness strengths.
+    particle_depth_response: vec4<f32>,
 }
 
 struct Force {
@@ -185,8 +187,17 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
         vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(1.0, 1.0),
         vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, 1.0),
     );
-    let offset = corners[index % 6u] * frame.particle_size_pixels / frame.viewport_size;
     var position = frame.view_projection * vec4<f32>(particle.position_age.xyz * frame.position_scale, 1.0);
+    let view_depth = max(position.w, 0.001);
+    let depth_near = frame.particle_depth_response.x;
+    let depth_far = max(frame.particle_depth_response.y, depth_near + 0.001);
+    let depth_mix = smoothstep(depth_near, depth_far, view_depth);
+    let perspective_scale = clamp(depth_near / view_depth, 0.25, 2.0);
+    let size_scale = mix(1.0, perspective_scale, frame.particle_depth_response.z);
+    let offset = corners[index % 6u]
+        * frame.particle_size_pixels
+        * size_scale
+        / frame.viewport_size;
     position = vec4<f32>(position.xy + offset * position.w, position.zw);
     if (
         index / 6u >= frame.active_particle_count
@@ -211,7 +222,8 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
         let value = mix(1.0, 0.58, min(radial, 1.0));
         color = hsv_to_rgb(vec3<f32>(hue, saturation, value));
     }
-    output.color = vec4<f32>(color * frame.brightness, particle.color.a);
+    let depth_brightness = 1.0 - depth_mix * frame.particle_depth_response.w;
+    output.color = vec4<f32>(color * frame.brightness * depth_brightness, particle.color.a);
     return output;
 }
 

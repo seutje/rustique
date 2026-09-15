@@ -307,6 +307,8 @@ mod tests {
             mapping.source == crate::ModulationSource::Bass
                 && mapping.target == crate::ModulationTarget::HueShift
         }));
+        assert!(project.render_defaults.particle_depth_size_strength > 0.0);
+        assert!(project.render_defaults.particle_depth_brightness_strength > 0.0);
     }
 
     #[test]
@@ -315,6 +317,8 @@ mod tests {
         let flocking = preset.particle_system.flocking.as_ref().unwrap();
         assert!(flocking.enabled && flocking.murmuration.enabled);
         assert!(flocking.attractors.len() > 1);
+        assert!(preset.render_defaults.particle_depth_size_strength >= 0.8);
+        assert!(preset.render_defaults.particle_depth_brightness_strength > 0.0);
         for target in [
             crate::ModulationTarget::FlockingSeparation,
             crate::ModulationTarget::FlockingCohesion,

@@ -40,9 +40,11 @@ pub struct FrameUniforms {
     padding: u32,
     pub initialization_params: [f32; 4],
     pub lifecycle_params: [f32; 4],
+    /// near distance, far distance, size strength, brightness strength.
+    pub particle_depth_response: [f32; 4],
 }
 
-const _: () = assert!(size_of::<FrameUniforms>() == 160);
+const _: () = assert!(size_of::<FrameUniforms>() == 176);
 
 #[derive(Clone, Copy, Debug)]
 pub struct BenchmarkConfig {
@@ -51,6 +53,8 @@ pub struct BenchmarkConfig {
     pub force_scale: f32,
     pub brightness: f32,
     pub hue_shift: f32,
+    /// Camera-space near/far distances and size/brightness response strengths.
+    pub particle_depth_response: [f32; 4],
     pub active_particle_count: Option<u32>,
     pub view_projection: Option<[[f32; 4]; 4]>,
     pub flocking: FlockingModulation,
@@ -64,6 +68,7 @@ impl Default for BenchmarkConfig {
             force_scale: 1.0,
             brightness: 1.0,
             hue_shift: 0.0,
+            particle_depth_response: [1.0, 10.0, 0.0, 0.0],
             active_particle_count: None,
             view_projection: None,
             flocking: FlockingModulation::default(),
@@ -460,6 +465,7 @@ impl ParticleRenderer {
                     padding: 0,
                     initialization_params,
                     lifecycle_params,
+                    particle_depth_response: render_config.particle_depth_response,
                 };
                 context
                     .queue
@@ -528,6 +534,7 @@ impl ParticleRenderer {
             padding: 0,
             initialization_params,
             lifecycle_params,
+            particle_depth_response: render_config.particle_depth_response,
         };
         context
             .queue
@@ -626,6 +633,7 @@ impl ParticleRenderer {
             padding: 0,
             initialization_params,
             lifecycle_params,
+            particle_depth_response: config.particle_depth_response,
         };
         context
             .queue
@@ -753,6 +761,7 @@ impl ParticleRenderer {
             padding: 0,
             initialization_params,
             lifecycle_params,
+            particle_depth_response: [1.0, 10.0, 0.0, 0.0],
         };
         context
             .queue

@@ -9,7 +9,7 @@
     { "type": "drag", "coefficient": 0.01 }
   ],
   "camera": { "position": [0.0, 0.0, 3.6], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 45.0, "mode": "orbit", "orbit_degrees_per_second": 1.5, "drift_amplitude": [0.03, 0.02, 0.03], "fov_modulation_degrees": 8.0, "shake_amplitude": 0.03 },
-  "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 2.0, "background": [0.0, 0.0, 0.0, 1.0] },
+  "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 2.0, "particle_depth_near": 2.7, "particle_depth_far": 4.5, "particle_depth_size_strength": 0.55, "particle_depth_brightness_strength": 0.58, "background": [0.0, 0.0, 0.0, 1.0] },
   "macros": [
     { "id": "density", "label": "Density", "target": "particle_count", "minimum": 10000.0, "maximum": 1000000.0, "default": 100000.0 },
     { "id": "orbit_speed", "label": "Orbit Speed", "target": "orbit_speed", "minimum": -30.0, "maximum": 30.0, "default": 1.5 }

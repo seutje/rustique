@@ -518,6 +518,10 @@ async fn render_loop(
                     timing,
                     BenchmarkConfig {
                         particle_size_pixels: parameters.particle_size,
+                        particle_depth_response: scene
+                            .project
+                            .render_defaults
+                            .particle_depth_response(),
                         force_scale: parameters.gravity_strength,
                         brightness: parameters.brightness,
                         hue_shift: parameters.hue_shift,

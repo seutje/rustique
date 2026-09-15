@@ -1598,6 +1598,7 @@ fn render_project_still(
             SimulationTiming::new(project_fps, project_fps, substeps),
             BenchmarkConfig {
                 particle_size_pixels: project.render_defaults.particle_size_pixels,
+                particle_depth_response: project.render_defaults.particle_depth_response(),
                 position_scale: 1.0,
                 view_projection: Some(project_camera_matrix(
                     &project,
@@ -1762,6 +1763,7 @@ fn render_scene_layer(
                     SimulationTiming::new(fps, fps, substeps),
                     BenchmarkConfig {
                         particle_size_pixels: project.render_defaults.particle_size_pixels,
+                        particle_depth_response: project.render_defaults.particle_depth_response(),
                         view_projection: Some(project_camera_matrix(
                             project,
                             options.frame as f32 / project.fps as f32,

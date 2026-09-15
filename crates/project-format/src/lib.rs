@@ -482,7 +482,40 @@ pub struct RenderDefaultsV1 {
     pub width: u32,
     pub height: u32,
     pub particle_size_pixels: f32,
+    /// Camera-space distance at which particle depth response begins.
+    #[serde(default = "default_particle_depth_near")]
+    pub particle_depth_near: f32,
+    /// Camera-space distance at which particle depth response reaches full strength.
+    #[serde(default = "default_particle_depth_far")]
+    pub particle_depth_far: f32,
+    /// Blend between constant screen-space size and perspective-scaled size.
+    #[serde(default)]
+    pub particle_depth_size_strength: f32,
+    /// Fraction of particle brightness removed at `particle_depth_far`.
+    #[serde(default)]
+    pub particle_depth_brightness_strength: f32,
     pub background: [f64; 4],
+}
+
+const fn default_particle_depth_near() -> f32 {
+    1.0
+}
+
+const fn default_particle_depth_far() -> f32 {
+    10.0
+}
+
+impl RenderDefaultsV1 {
+    /// Packs particle depth controls in the order expected by render-core.
+    #[must_use]
+    pub const fn particle_depth_response(&self) -> [f32; 4] {
+        [
+            self.particle_depth_near,
+            self.particle_depth_far,
+            self.particle_depth_size_strength,
+            self.particle_depth_brightness_strength,
+        ]
+    }
 }
 
 #[derive(Debug, Error)]
@@ -671,6 +704,20 @@ impl ProjectV1 {
         {
             return Err(ProjectError::Validation(
                 "particle size must be positive and finite".into(),
+            ));
+        }
+        let depth = &self.render_defaults;
+        if !depth.particle_depth_near.is_finite()
+            || !depth.particle_depth_far.is_finite()
+            || depth.particle_depth_near <= 0.0
+            || depth.particle_depth_far <= depth.particle_depth_near
+            || !depth.particle_depth_size_strength.is_finite()
+            || !(0.0..=1.0).contains(&depth.particle_depth_size_strength)
+            || !depth.particle_depth_brightness_strength.is_finite()
+            || !(0.0..=1.0).contains(&depth.particle_depth_brightness_strength)
+        {
+            return Err(ProjectError::Validation(
+                "particle depth range must be finite, positive, and ordered, with size and brightness strengths in [0, 1]".into(),
             ));
         }
         if !self.camera.vertical_fov_degrees.is_finite()
@@ -907,6 +954,10 @@ mod tests {
                 width: 1920,
                 height: 1080,
                 particle_size_pixels: 2.0,
+                particle_depth_near: default_particle_depth_near(),
+                particle_depth_far: default_particle_depth_far(),
+                particle_depth_size_strength: 0.0,
+                particle_depth_brightness_strength: 0.0,
                 background: [0.0, 0.0, 0.0, 1.0],
             },
             render_mode: RenderModeV1::Particles,

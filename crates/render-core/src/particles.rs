@@ -42,9 +42,50 @@ pub struct FrameUniforms {
     pub lifecycle_params: [f32; 4],
     /// near distance, far distance, size strength, brightness strength.
     pub particle_depth_response: [f32; 4],
+    /// Autonomous fire controls: buoyancy, turbulence, flicker, audio master.
+    pub fire_base: [f32; 4],
+    /// Fire palette and wave controls: temperature, beat wave, unused, unused.
+    pub fire_style: [f32; 4],
+    /// Audio fire body controls: emission, base width, height, broad sway.
+    pub fire_audio_body: [f32; 4],
+    /// Audio fire detail controls: turbulence, flicker, shimmer, sparks.
+    pub fire_audio_detail: [f32; 4],
+    /// Audio fire color/wave controls: temperature bias, beat wave, unused, unused.
+    pub fire_audio_accent: [f32; 4],
 }
 
-const _: () = assert!(size_of::<FrameUniforms>() == 176);
+const _: () = assert!(size_of::<FrameUniforms>() == 256);
+
+#[derive(Clone, Copy, Debug)]
+pub struct FireModulation {
+    pub emission: f32,
+    pub base_width: f32,
+    pub height: f32,
+    pub sway: f32,
+    pub turbulence: f32,
+    pub flicker: f32,
+    pub shimmer: f32,
+    pub sparks: f32,
+    pub temperature: f32,
+    pub beat_wave: f32,
+}
+
+impl Default for FireModulation {
+    fn default() -> Self {
+        Self {
+            emission: 1.0,
+            base_width: 1.0,
+            height: 1.0,
+            sway: 1.0,
+            turbulence: 1.0,
+            flicker: 1.0,
+            shimmer: 1.0,
+            sparks: 0.0,
+            temperature: 0.0,
+            beat_wave: 0.0,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct BenchmarkConfig {
@@ -58,6 +99,7 @@ pub struct BenchmarkConfig {
     pub active_particle_count: Option<u32>,
     pub view_projection: Option<[[f32; 4]; 4]>,
     pub flocking: FlockingModulation,
+    pub fire: FireModulation,
 }
 
 impl Default for BenchmarkConfig {
@@ -72,6 +114,7 @@ impl Default for BenchmarkConfig {
             active_particle_count: None,
             view_projection: None,
             flocking: FlockingModulation::default(),
+            fire: FireModulation::default(),
         }
     }
 }
@@ -435,6 +478,7 @@ impl ParticleRenderer {
         let (initialization_mode, initialization_params, mut lifecycle_params) =
             initialization_uniforms(self.initialization);
         lifecycle_params[2] = render_config.hue_shift;
+        let fire_uniforms = fire_uniforms(self.initialization, render_config.fire);
         if frame_index < self.timeline_frame {
             self.reset(context);
         }
@@ -466,6 +510,11 @@ impl ParticleRenderer {
                     initialization_params,
                     lifecycle_params,
                     particle_depth_response: render_config.particle_depth_response,
+                    fire_base: fire_uniforms.0,
+                    fire_style: fire_uniforms.1,
+                    fire_audio_body: fire_uniforms.2,
+                    fire_audio_detail: fire_uniforms.3,
+                    fire_audio_accent: fire_uniforms.4,
                 };
                 context
                     .queue
@@ -535,6 +584,11 @@ impl ParticleRenderer {
             initialization_params,
             lifecycle_params,
             particle_depth_response: render_config.particle_depth_response,
+            fire_base: fire_uniforms.0,
+            fire_style: fire_uniforms.1,
+            fire_audio_body: fire_uniforms.2,
+            fire_audio_detail: fire_uniforms.3,
+            fire_audio_accent: fire_uniforms.4,
         };
         context
             .queue
@@ -609,6 +663,7 @@ impl ParticleRenderer {
         let (initialization_mode, initialization_params, mut lifecycle_params) =
             initialization_uniforms(self.initialization);
         lifecycle_params[2] = config.hue_shift;
+        let fire_uniforms = fire_uniforms(self.initialization, config.fire);
         let uniforms = FrameUniforms {
             view_projection: config
                 .view_projection
@@ -634,6 +689,11 @@ impl ParticleRenderer {
             initialization_params,
             lifecycle_params,
             particle_depth_response: config.particle_depth_response,
+            fire_base: fire_uniforms.0,
+            fire_style: fire_uniforms.1,
+            fire_audio_body: fire_uniforms.2,
+            fire_audio_detail: fire_uniforms.3,
+            fire_audio_accent: fire_uniforms.4,
         };
         context
             .queue
@@ -742,6 +802,7 @@ impl ParticleRenderer {
     ) -> Result<Vec<u8>, ParticleRenderError> {
         let (initialization_mode, initialization_params, lifecycle_params) =
             initialization_uniforms(self.initialization);
+        let fire_uniforms = fire_uniforms(self.initialization, FireModulation::default());
         let uniforms = FrameUniforms {
             view_projection: aspect_matrix(target.dimensions()),
             frame_index,
@@ -762,6 +823,11 @@ impl ParticleRenderer {
             initialization_params,
             lifecycle_params,
             particle_depth_response: [1.0, 10.0, 0.0, 0.0],
+            fire_base: fire_uniforms.0,
+            fire_style: fire_uniforms.1,
+            fire_audio_body: fire_uniforms.2,
+            fire_audio_detail: fire_uniforms.3,
+            fire_audio_accent: fire_uniforms.4,
         };
         context
             .queue
@@ -879,7 +945,63 @@ fn initialization_uniforms(initialization: ParticleInitialization) -> (u32, [f32
             [radius, thickness, lifetime_seconds, 0.0],
             [spawn_spread_seconds, lifetime_variation, 0.0, 0.0],
         ),
+        ParticleInitialization::Fire {
+            base_radius,
+            flame_height,
+            lifetime_seconds,
+            lifetime_variation,
+            spark_ratio,
+            spark_velocity,
+            spark_lifetime,
+            ..
+        } => (
+            2,
+            [
+                base_radius,
+                flame_height,
+                lifetime_seconds,
+                lifetime_variation,
+            ],
+            [spark_ratio, spark_velocity, spark_lifetime, 0.0],
+        ),
     }
+}
+
+type FireUniforms = ([f32; 4], [f32; 4], [f32; 4], [f32; 4], [f32; 4]);
+
+fn fire_uniforms(
+    initialization: ParticleInitialization,
+    modulation: FireModulation,
+) -> FireUniforms {
+    let ParticleInitialization::Fire {
+        buoyancy,
+        turbulence,
+        flicker,
+        audio_reactivity,
+        temperature,
+        beat_wave_strength,
+        ..
+    } = initialization
+    else {
+        return ([0.0; 4], [0.0; 4], [1.0; 4], [1.0, 1.0, 1.0, 0.0], [0.0; 4]);
+    };
+    (
+        [buoyancy, turbulence, flicker, audio_reactivity],
+        [temperature, beat_wave_strength, 0.0, 0.0],
+        [
+            modulation.emission,
+            modulation.base_width,
+            modulation.height,
+            modulation.sway,
+        ],
+        [
+            modulation.turbulence,
+            modulation.flicker,
+            modulation.shimmer,
+            modulation.sparks,
+        ],
+        [modulation.temperature, modulation.beat_wave, 0.0, 0.0],
+    )
 }
 
 fn create_timing_resources(context: &GpuContext) -> Option<TimingResources> {

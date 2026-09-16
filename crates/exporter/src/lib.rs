@@ -13,11 +13,11 @@ use project_format::{
     evaluate_mappings,
 };
 use render_core::{
-    BenchmarkConfig, FlockingModulation, GpuContext, LiquidChromeConfig, LiquidChromeError,
-    LiquidChromeRenderer, OffscreenError, OffscreenRenderTarget, ParticleRenderError,
-    ParticleRenderer, PerspectiveCamera, RgbaColor, VolumetricConfig, VolumetricModulation,
-    VolumetricQuality, VolumetricRenderer, WaterDropletConfig, WaterDropletError,
-    WaterDropletModulation, WaterDropletRenderer,
+    BenchmarkConfig, FireModulation, FlockingModulation, GpuContext, LiquidChromeConfig,
+    LiquidChromeError, LiquidChromeRenderer, OffscreenError, OffscreenRenderTarget,
+    ParticleRenderError, ParticleRenderer, PerspectiveCamera, RgbaColor, VolumetricConfig,
+    VolumetricModulation, VolumetricQuality, VolumetricRenderer, WaterDropletConfig,
+    WaterDropletError, WaterDropletModulation, WaterDropletRenderer,
 };
 use simulation::SimulationTiming;
 use std::{
@@ -250,6 +250,7 @@ pub fn render_png_sequence(
                 config.height,
             )),
             flocking: flocking_modulation(&parameters),
+            fire: fire_modulation(&parameters),
         };
         let clear = RgbaColor::new(background[0], background[1], background[2], background[3]);
         if frame < config.start_frame {
@@ -361,6 +362,21 @@ fn flocking_modulation(parameters: &ModulatedParameters) -> FlockingModulation {
         speed: parameters.flocking_speed,
         randomness: parameters.flocking_randomness,
         impulse: parameters.flocking_impulse,
+    }
+}
+
+pub(crate) fn fire_modulation(parameters: &ModulatedParameters) -> FireModulation {
+    FireModulation {
+        emission: parameters.fire_emission,
+        base_width: parameters.fire_base_width,
+        height: parameters.fire_height,
+        sway: parameters.fire_sway,
+        turbulence: parameters.fire_turbulence,
+        flicker: parameters.fire_flicker,
+        shimmer: parameters.fire_shimmer,
+        sparks: parameters.fire_sparks,
+        temperature: parameters.fire_temperature,
+        beat_wave: parameters.fire_beat_wave,
     }
 }
 

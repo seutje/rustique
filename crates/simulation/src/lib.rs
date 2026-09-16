@@ -33,6 +33,23 @@ pub enum ParticleInitialization {
         #[serde(default)]
         lifetime_variation: f32,
     },
+    /// Dense, continuously respawning flame column. The GPU update path owns
+    /// fire motion; these values only define its autonomous baseline.
+    Fire {
+        base_radius: f32,
+        flame_height: f32,
+        lifetime_seconds: f32,
+        lifetime_variation: f32,
+        buoyancy: f32,
+        turbulence: f32,
+        flicker: f32,
+        spark_ratio: f32,
+        spark_velocity: f32,
+        spark_lifetime: f32,
+        audio_reactivity: f32,
+        temperature: f32,
+        beat_wave_strength: f32,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -482,6 +499,7 @@ pub fn initialize_particles_with(
                         unit(hash(seed, index, 10)) * spawn_spread_seconds,
                     )
                 }
+                ParticleInitialization::Fire { .. } => initialize_fire(seed, index, initialization),
             };
             Particle {
                 position_age: [position[0], position[1], position[2], age],
@@ -493,10 +511,96 @@ pub fn initialize_particles_with(
                     1.0,
                 ],
                 // params.x is the absolute simulation time at which this particle appears.
-                params: [spawn_time, 0.0, 0.0, 0.0],
+                params: [
+                    spawn_time,
+                    fire_spark_class(seed, index, initialization),
+                    unit(hash(seed, index, 12)),
+                    unit(hash(seed, index, 13)),
+                ],
             }
         })
         .collect()
+}
+
+type InitialParticleState = ([f32; 3], [f32; 3], f32, f32, f32);
+
+fn initialize_fire(
+    seed: u64,
+    index: u32,
+    initialization: ParticleInitialization,
+) -> InitialParticleState {
+    let ParticleInitialization::Fire {
+        base_radius,
+        flame_height,
+        lifetime_seconds,
+        lifetime_variation,
+        spark_ratio,
+        spark_velocity,
+        spark_lifetime,
+        ..
+    } = initialization
+    else {
+        unreachable!("fire initialization helper requires fire parameters");
+    };
+    let radial = unit(hash(seed, index, 0)).sqrt() * base_radius;
+    let angle = unit(hash(seed, index, 1)) * std::f32::consts::TAU;
+    let (sin, cos) = angle.sin_cos();
+    let is_spark = unit(hash(seed, index, 2)) < spark_ratio;
+    let lifetime_scale = 1.0 + signed_unit(hash(seed, index, 9)) * lifetime_variation;
+    let lifetime = if is_spark {
+        spark_lifetime * lifetime_scale
+    } else {
+        lifetime_seconds * lifetime_scale
+    };
+    let upward = if is_spark {
+        spark_velocity * (0.7 + unit(hash(seed, index, 3)) * 0.6)
+    } else {
+        flame_height * (0.72 + unit(hash(seed, index, 3)) * 0.4)
+    };
+    let age = unit(hash(seed, index, 4)) * lifetime;
+    let age01 = age / lifetime.max(0.001);
+    let taper = if is_spark {
+        1.0
+    } else {
+        (1.0 - age01).max(0.03).powf(0.62)
+    };
+    let tongue_sway = if is_spark {
+        0.0
+    } else {
+        let tongue = (unit(hash(seed, index, 12)) * 3.0).floor() - 1.0;
+        tongue * age01 * age01 * 0.2 + (age01 * 8.0 + tongue).sin() * age01 * 0.055
+    };
+    let height = if is_spark {
+        -0.86 + upward * age * 0.65 - 0.08 * age * age
+    } else {
+        -0.86 + flame_height * age01.powf(0.72) * 1.5
+    };
+    (
+        [
+            radial * cos * taper + tongue_sway,
+            height,
+            radial * sin * 0.55 * taper,
+        ],
+        [
+            signed_unit(hash(seed, index, 8)) * 0.08,
+            upward,
+            signed_unit(hash(seed, index, 11)) * 0.05,
+        ],
+        age,
+        lifetime,
+        0.0,
+    )
+}
+
+fn fire_spark_class(seed: u64, index: u32, initialization: ParticleInitialization) -> f32 {
+    match initialization {
+        ParticleInitialization::Fire { spark_ratio, .. }
+            if unit(hash(seed, index, 2)) < spark_ratio =>
+        {
+            1.0
+        }
+        _ => 0.0,
+    }
 }
 
 fn hash(seed: u64, index: u32, stream: u32) -> u32 {

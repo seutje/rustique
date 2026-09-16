@@ -25,7 +25,8 @@ pub use layers::{LayerBlendMode, composite_rgba8};
 pub use liquid_chrome::{LiquidChromeConfig, LiquidChromeError, LiquidChromeRenderer};
 pub use offscreen::{OffscreenError, OffscreenRenderTarget, RgbaColor};
 pub use particles::{
-    BenchmarkConfig, FrameTiming, FrameUniforms, ParticleRenderError, ParticleRenderer,
+    BenchmarkConfig, FireModulation, FrameTiming, FrameUniforms, ParticleRenderError,
+    ParticleRenderer,
 };
 pub use passes::{PassError, RenderPass, save_exr, save_render_passes};
 pub use post_process::{PostProcessConfig, PostProcessQuality};

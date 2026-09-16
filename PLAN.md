@@ -569,6 +569,9 @@ Make visual systems data-driven and composable.
     - Uses the shared implicit-surface material renderer with green dielectric
       body color, wet reflections, and deterministic surface deformation.
   - [x] Water Droplets prototype
+  - [x] Audio-reactive Fire
+    - Uses the shared GPU particle pass with a fire-specific deterministic
+      emitter, multi-scale turbulence, transient sparks, and band-scaled motion.
 - [x] Ensure presets reuse common engine systems where possible
 
 ## Acceptance Criteria

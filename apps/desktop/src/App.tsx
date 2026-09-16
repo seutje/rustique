@@ -14,8 +14,8 @@ import {
 } from "./native";
 import { useEditorStore, type ProjectData } from "./store";
 
-const presets = ["Star System", "Nebula", "Liquid Chrome", "Green Slime", "Water Droplets"];
-const presetFiles: Record<string, string> = { "Star System": "presets/star-system.json", Nebula: "presets/nebula.json", "Liquid Chrome": "presets/liquid-chrome.json", "Green Slime": "presets/green-slime.json", "Water Droplets": "presets/water-droplets.json", "Cinematic Murmuration": "presets/murmuration.json" };
+const presets = ["Star System", "Nebula", "Liquid Chrome", "Green Slime", "Water Droplets", "Cinematic Murmuration", "Audio-Reactive Fire"];
+const presetFiles: Record<string, string> = { "Star System": "presets/star-system.json", Nebula: "presets/nebula.json", "Liquid Chrome": "presets/liquid-chrome.json", "Green Slime": "presets/green-slime.json", "Water Droplets": "presets/water-droplets.json", "Cinematic Murmuration": "presets/murmuration.json", "Audio-Reactive Fire": "presets/fire.json" };
 type View = "editor" | "exporter";
 type Run = (action: () => Promise<void>) => void;
 

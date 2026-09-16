@@ -59,6 +59,16 @@ pub enum ModulationTarget {
     FlockingSpeed,
     FlockingRandomness,
     FlockingImpulse,
+    FireEmission,
+    FireBaseWidth,
+    FireHeight,
+    FireSway,
+    FireTurbulence,
+    FireFlicker,
+    FireShimmer,
+    FireSparks,
+    FireTemperature,
+    FireBeatWave,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -127,6 +137,16 @@ pub struct ModulatedParameters {
     pub flocking_speed: f32,
     pub flocking_randomness: f32,
     pub flocking_impulse: f32,
+    pub fire_emission: f32,
+    pub fire_base_width: f32,
+    pub fire_height: f32,
+    pub fire_sway: f32,
+    pub fire_turbulence: f32,
+    pub fire_flicker: f32,
+    pub fire_shimmer: f32,
+    pub fire_sparks: f32,
+    pub fire_temperature: f32,
+    pub fire_beat_wave: f32,
 }
 
 impl Default for ModulatedParameters {
@@ -154,6 +174,16 @@ impl Default for ModulatedParameters {
             flocking_speed: 1.0,
             flocking_randomness: 1.0,
             flocking_impulse: 0.0,
+            fire_emission: 1.0,
+            fire_base_width: 1.0,
+            fire_height: 1.0,
+            fire_sway: 1.0,
+            fire_turbulence: 1.0,
+            fire_flicker: 1.0,
+            fire_shimmer: 1.0,
+            fire_sparks: 0.0,
+            fire_temperature: 0.0,
+            fire_beat_wave: 0.0,
         }
     }
 }
@@ -196,6 +226,16 @@ impl ModulatedParameters {
                     self.flocking_randomness = value.output_value;
                 }
                 ModulationTarget::FlockingImpulse => self.flocking_impulse = value.output_value,
+                ModulationTarget::FireEmission => self.fire_emission = value.output_value,
+                ModulationTarget::FireBaseWidth => self.fire_base_width = value.output_value,
+                ModulationTarget::FireHeight => self.fire_height = value.output_value,
+                ModulationTarget::FireSway => self.fire_sway = value.output_value,
+                ModulationTarget::FireTurbulence => self.fire_turbulence = value.output_value,
+                ModulationTarget::FireFlicker => self.fire_flicker = value.output_value,
+                ModulationTarget::FireShimmer => self.fire_shimmer = value.output_value,
+                ModulationTarget::FireSparks => self.fire_sparks = value.output_value,
+                ModulationTarget::FireTemperature => self.fire_temperature = value.output_value,
+                ModulationTarget::FireBeatWave => self.fire_beat_wave = value.output_value,
             }
         }
     }

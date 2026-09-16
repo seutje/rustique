@@ -24,7 +24,7 @@ use render_core::{
 };
 use simulation::SimulationTiming;
 
-use crate::{ExportError, camera_matrix};
+use crate::{ExportError, camera_matrix, fire_modulation};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum VideoCodec {
@@ -325,6 +325,7 @@ pub fn export_video(
                             randomness: parameters.flocking_randomness,
                             impulse: parameters.flocking_impulse,
                         },
+                        fire: fire_modulation(&parameters),
                     },
                     clear,
                 )

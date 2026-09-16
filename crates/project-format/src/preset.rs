@@ -62,6 +62,17 @@ pub enum MacroTargetV1 {
     CameraShake,
     MaterialRoughness,
     SurfaceDeformation,
+    FireBaseRadius,
+    FireHeight,
+    FireBuoyancy,
+    FireTurbulence,
+    FireFlicker,
+    FireSparkAmount,
+    FireSparkVelocity,
+    FireSparkLifetime,
+    FireTemperature,
+    FireAudioReactivity,
+    FireBeatWave,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -182,6 +193,113 @@ fn apply_macro(project: &mut ProjectV1, target: MacroTargetV1, value: f32) {
         MacroTargetV1::CameraShake => project.camera.shake_amplitude = value,
         MacroTargetV1::MaterialRoughness => project.liquid_chrome.roughness = value,
         MacroTargetV1::SurfaceDeformation => project.liquid_chrome.surface_deformation = value,
+        MacroTargetV1::FireBaseRadius => set_fire_parameter(
+            &mut project.particle_system.initialization,
+            FireParameter::BaseRadius,
+            value,
+        ),
+        MacroTargetV1::FireHeight => set_fire_parameter(
+            &mut project.particle_system.initialization,
+            FireParameter::Height,
+            value,
+        ),
+        MacroTargetV1::FireBuoyancy => set_fire_parameter(
+            &mut project.particle_system.initialization,
+            FireParameter::Buoyancy,
+            value,
+        ),
+        MacroTargetV1::FireTurbulence => set_fire_parameter(
+            &mut project.particle_system.initialization,
+            FireParameter::Turbulence,
+            value,
+        ),
+        MacroTargetV1::FireFlicker => set_fire_parameter(
+            &mut project.particle_system.initialization,
+            FireParameter::Flicker,
+            value,
+        ),
+        MacroTargetV1::FireSparkAmount => set_fire_parameter(
+            &mut project.particle_system.initialization,
+            FireParameter::SparkAmount,
+            value,
+        ),
+        MacroTargetV1::FireSparkVelocity => set_fire_parameter(
+            &mut project.particle_system.initialization,
+            FireParameter::SparkVelocity,
+            value,
+        ),
+        MacroTargetV1::FireSparkLifetime => set_fire_parameter(
+            &mut project.particle_system.initialization,
+            FireParameter::SparkLifetime,
+            value,
+        ),
+        MacroTargetV1::FireTemperature => set_fire_parameter(
+            &mut project.particle_system.initialization,
+            FireParameter::Temperature,
+            value,
+        ),
+        MacroTargetV1::FireAudioReactivity => set_fire_parameter(
+            &mut project.particle_system.initialization,
+            FireParameter::AudioReactivity,
+            value,
+        ),
+        MacroTargetV1::FireBeatWave => set_fire_parameter(
+            &mut project.particle_system.initialization,
+            FireParameter::BeatWave,
+            value,
+        ),
+    }
+}
+
+#[derive(Clone, Copy)]
+enum FireParameter {
+    BaseRadius,
+    Height,
+    Buoyancy,
+    Turbulence,
+    Flicker,
+    SparkAmount,
+    SparkVelocity,
+    SparkLifetime,
+    Temperature,
+    AudioReactivity,
+    BeatWave,
+}
+
+fn set_fire_parameter(
+    initialization: &mut simulation::ParticleInitialization,
+    parameter: FireParameter,
+    value: f32,
+) {
+    let simulation::ParticleInitialization::Fire {
+        base_radius,
+        flame_height,
+        buoyancy,
+        turbulence,
+        flicker,
+        spark_ratio,
+        spark_velocity,
+        spark_lifetime,
+        temperature,
+        audio_reactivity,
+        beat_wave_strength,
+        ..
+    } = initialization
+    else {
+        return;
+    };
+    match parameter {
+        FireParameter::BaseRadius => *base_radius = value,
+        FireParameter::Height => *flame_height = value,
+        FireParameter::Buoyancy => *buoyancy = value,
+        FireParameter::Turbulence => *turbulence = value,
+        FireParameter::Flicker => *flicker = value,
+        FireParameter::SparkAmount => *spark_ratio = value,
+        FireParameter::SparkVelocity => *spark_velocity = value,
+        FireParameter::SparkLifetime => *spark_lifetime = value,
+        FireParameter::Temperature => *temperature = value,
+        FireParameter::AudioReactivity => *audio_reactivity = value,
+        FireParameter::BeatWave => *beat_wave_strength = value,
     }
 }
 
@@ -220,6 +338,7 @@ mod tests {
             "green-slime",
             "water-droplets",
             "murmuration",
+            "fire",
         ];
         let presets: Vec<_> = names
             .iter()
@@ -227,7 +346,7 @@ mod tests {
                 VisualPresetV1::load(repository_path(&format!("presets/{name}.json"))).unwrap()
             })
             .collect();
-        assert_eq!(presets.len(), 6);
+        assert_eq!(presets.len(), 7);
         assert_ne!(presets[0].forces, presets[1].forces);
         assert_ne!(presets[1].render_defaults, presets[2].render_defaults);
         assert!(
@@ -334,5 +453,87 @@ mod tests {
                     .any(|mapping| mapping.target == target)
             );
         }
+    }
+
+    #[test]
+    fn fire_uses_scale_appropriate_audio_mappings_and_safe_silence_defaults() {
+        let preset = VisualPresetV1::load(repository_path("presets/fire.json")).unwrap();
+        assert!(matches!(
+            preset.particle_system.initialization,
+            simulation::ParticleInitialization::Fire {
+                audio_reactivity,
+                spark_ratio,
+                ..
+            } if audio_reactivity > 0.0 && audio_reactivity <= 0.3 && spark_ratio > 0.0
+        ));
+        for (source, target) in [
+            (
+                crate::ModulationSource::Sub,
+                crate::ModulationTarget::FireBaseWidth,
+            ),
+            (
+                crate::ModulationSource::Bass,
+                crate::ModulationTarget::FireHeight,
+            ),
+            (
+                crate::ModulationSource::LowMids,
+                crate::ModulationTarget::FireSway,
+            ),
+            (
+                crate::ModulationSource::Mids,
+                crate::ModulationTarget::FireTurbulence,
+            ),
+            (
+                crate::ModulationSource::HighMids,
+                crate::ModulationTarget::FireFlicker,
+            ),
+            (
+                crate::ModulationSource::Highs,
+                crate::ModulationTarget::FireShimmer,
+            ),
+            (
+                crate::ModulationSource::Transient,
+                crate::ModulationTarget::FireSparks,
+            ),
+            (
+                crate::ModulationSource::SpectralCentroid,
+                crate::ModulationTarget::FireTemperature,
+            ),
+        ] {
+            assert!(
+                preset
+                    .recommended_mappings
+                    .iter()
+                    .any(|mapping| { mapping.source == source && mapping.target == target })
+            );
+        }
+        let bass = preset
+            .recommended_mappings
+            .iter()
+            .find(|mapping| mapping.target == crate::ModulationTarget::FireHeight)
+            .unwrap();
+        assert!((0.02..=0.06).contains(&bass.attack_seconds));
+        assert!((0.15..=0.4).contains(&bass.release_seconds));
+    }
+
+    #[test]
+    fn switching_between_fire_and_existing_preset_replaces_specialized_state() {
+        let fire = VisualPresetV1::load(repository_path("presets/fire.json")).unwrap();
+        let stars = VisualPresetV1::load(repository_path("presets/star-system.json")).unwrap();
+        let mut project =
+            ProjectV1::load(repository_path("examples/star-orbit.rustique.json")).unwrap();
+        fire.apply(&mut project, &PresetOverridesV1::default())
+            .unwrap();
+        assert!(matches!(
+            project.particle_system.initialization,
+            simulation::ParticleInitialization::Fire { .. }
+        ));
+        stars
+            .apply(&mut project, &PresetOverridesV1::default())
+            .unwrap();
+        assert!(!matches!(
+            project.particle_system.initialization,
+            simulation::ParticleInitialization::Fire { .. }
+        ));
     }
 }

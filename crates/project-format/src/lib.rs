@@ -694,6 +694,56 @@ impl ProjectV1 {
                 "galactic disk requires positive radius, non-negative thickness/spawn spread, lifetime greater than five seconds, and lifetime variation in [0, 1)".into(),
             ));
         }
+        if let simulation::ParticleInitialization::Fire {
+            base_radius,
+            flame_height,
+            lifetime_seconds,
+            lifetime_variation,
+            buoyancy,
+            turbulence,
+            flicker,
+            spark_ratio,
+            spark_velocity,
+            spark_lifetime,
+            audio_reactivity,
+            temperature,
+            beat_wave_strength,
+        } = self.particle_system.initialization
+            && (![
+                base_radius,
+                flame_height,
+                lifetime_seconds,
+                lifetime_variation,
+                buoyancy,
+                turbulence,
+                flicker,
+                spark_ratio,
+                spark_velocity,
+                spark_lifetime,
+                audio_reactivity,
+                temperature,
+                beat_wave_strength,
+            ]
+            .into_iter()
+            .all(f32::is_finite)
+                || base_radius <= 0.0
+                || flame_height <= 0.0
+                || lifetime_seconds <= 0.0
+                || !(0.0..1.0).contains(&lifetime_variation)
+                || buoyancy < 0.0
+                || turbulence < 0.0
+                || flicker < 0.0
+                || !(0.0..=0.5).contains(&spark_ratio)
+                || spark_velocity <= 0.0
+                || spark_lifetime <= 0.0
+                || !(0.0..=1.0).contains(&audio_reactivity)
+                || !(0.0..=1.0).contains(&temperature)
+                || beat_wave_strength < 0.0)
+        {
+            return Err(ProjectError::Validation(
+                "fire initialization requires finite positive dimensions/lifetimes, spark ratio in [0, 0.5], and audio reactivity/temperature in [0, 1]".into(),
+            ));
+        }
         if self.render_defaults.width == 0 || self.render_defaults.height == 0 {
             return Err(ProjectError::Validation(
                 "render dimensions must be greater than zero".into(),
@@ -1068,6 +1118,21 @@ mod tests {
         )
         .unwrap();
         assert!(project.particle_system.flocking.is_some());
+    }
+
+    #[test]
+    fn repository_fire_example_is_valid() {
+        let project = ProjectV1::load(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../..")
+                .join("examples/audio-reactive-fire.rustique.json"),
+        )
+        .unwrap();
+        project.validate().unwrap();
+        assert!(matches!(
+            project.particle_system.initialization,
+            simulation::ParticleInitialization::Fire { .. }
+        ));
     }
 
     #[test]

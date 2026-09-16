@@ -535,6 +535,18 @@ async fn render_loop(
                             randomness: parameters.flocking_randomness,
                             impulse: parameters.flocking_impulse,
                         },
+                        fire: render_core::FireModulation {
+                            emission: parameters.fire_emission,
+                            base_width: parameters.fire_base_width,
+                            height: parameters.fire_height,
+                            sway: parameters.fire_sway,
+                            turbulence: parameters.fire_turbulence,
+                            flicker: parameters.fire_flicker,
+                            shimmer: parameters.fire_shimmer,
+                            sparks: parameters.fire_sparks,
+                            temperature: parameters.fire_temperature,
+                            beat_wave: parameters.fire_beat_wave,
+                        },
                         ..BenchmarkConfig::default()
                     },
                     RgbaColor::new(background[0], background[1], background[2], background[3]),

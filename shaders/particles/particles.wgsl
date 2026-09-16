@@ -107,19 +107,18 @@ fn update(@builtin(global_invocation_id) id: vec3<u32>) {
             // A tight base becomes increasingly free to split into persistent
             // tongues higher up, avoiding Brownian motion in the flame body.
             let radial = vec2<f32>(particle.position_age.x, particle.position_age.z);
-            let radial_force = radial * (1.15 + 1.1 * height) * frame.delta_time;
+            let radial_force = radial * (1.0 + 0.45 * height) * frame.delta_time;
             velocity.x -= radial_force.x;
             velocity.z -= radial_force.y;
             let audio_expansion = radial * max(body.y - 1.0, 0.0) * 0.7 * frame.delta_time;
             velocity.x += audio_expansion.x;
             velocity.z += audio_expansion.y;
-            var tongue = 0.0;
-            if (particle.params.z < 0.333) { tongue = -1.0; }
-            if (particle.params.z > 0.666) { tongue = 1.0; }
-            let tongue_target = tongue * height * height * (0.22 + detail.x * 0.09)
+            let tongue = select(-1.0, 1.0, particle.params.z > 0.5);
+            let tongue_split = smoothstep(0.38, 0.86, height);
+            let tongue_target = tongue * tongue_split * (0.2 + detail.x * 0.08)
                 + sin(height * 7.0 - frame.simulation_time * 2.3 + tongue) * height * 0.12;
             velocity.x += (tongue_target - particle.position_age.x)
-                * height * (3.6 + detail.x) * frame.delta_time;
+                * tongue_split * (3.0 + detail.x) * frame.delta_time;
             let wave_position = fract(frame.simulation_time * 0.72);
             let wave = exp(-pow((height - wave_position) * 13.0, 2.0));
             velocity.y += wave * frame.fire_style.y * frame.fire_audio_accent.y * 0.8 * frame.delta_time;
@@ -248,7 +247,8 @@ fn update(@builtin(global_invocation_id) id: vec3<u32>) {
                     * select(0.82, select(1.0, 1.3, spark_class > 2.5), spark_class > 1.5);
                 lateral = select(0.12, select(0.2, 0.13, spark_class > 2.5), spark_class > 1.5);
             }
-            particle.position_age = vec4<f32>(direction.x * radius, -0.86, direction.y * radius * 0.55, 0.0);
+            let base_y = -0.89 + random_unit(base ^ 0x51633e2du) * 0.075;
+            particle.position_age = vec4<f32>(direction.x * radius, base_y, direction.y * radius * 0.55, 0.0);
             particle.velocity_lifetime = vec4<f32>(
                 (random_unit(base ^ 0x63d83595u) * 2.0 - 1.0) * lateral,
                 upward,
@@ -302,10 +302,17 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
     let size_scale = mix(1.0, perspective_scale, frame.particle_depth_response.z);
     let corner = corners[index % 6u];
     var particle_size = frame.particle_size_pixels;
-    if (frame.initialization_mode == 2u && particle.params.y >= 1.0) {
-        particle_size *= select(0.72, select(0.52, 0.32, particle.params.y > 2.5), particle.params.y > 1.5);
+    var quad_scale = vec2<f32>(1.0);
+    if (frame.initialization_mode == 2u) {
+        let age01 = clamp(particle.position_age.w / max(particle.velocity_lifetime.w, 0.001), 0.0, 1.0);
+        if (particle.params.y >= 1.0) {
+            particle_size *= select(0.72, select(0.52, 0.32, particle.params.y > 2.5), particle.params.y > 1.5);
+            quad_scale = vec2<f32>(0.55, select(1.35, 2.6, particle.params.y > 2.5));
+        } else {
+            particle_size *= mix(1.08, 0.52, smoothstep(0.18, 1.0, age01));
+        }
     }
-    let offset = corner
+    let offset = corner * quad_scale
         * particle_size
         * size_scale
         / frame.viewport_size;
@@ -339,15 +346,15 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
         let age01 = clamp(particle.position_age.w / max(particle.velocity_lifetime.w, 0.001), 0.0, 1.0);
         let audio_temperature = frame.fire_audio_accent.x * frame.fire_base.w;
         let temperature = clamp(frame.fire_style.x + audio_temperature * 0.28 + particle.params.w * 0.08, 0.0, 1.0);
-        let hot = vec3<f32>(1.0, mix(0.72, 0.96, temperature), mix(0.08, 0.58, temperature));
-        let warm = vec3<f32>(1.0, mix(0.16, 0.46, temperature), 0.015);
-        let cool = vec3<f32>(0.34, 0.018, 0.002);
+        let hot = vec3<f32>(1.55, mix(0.9, 1.42, temperature), mix(0.12, 0.72, temperature));
+        let warm = vec3<f32>(1.4, mix(0.2, 0.58, temperature), 0.018);
+        let cool = vec3<f32>(0.3, 0.012, 0.001);
         color = mix(mix(hot, warm, smoothstep(0.05, 0.58, age01)), cool, smoothstep(0.58, 1.0, age01));
         if (particle.params.y >= 1.0) {
             color = mix(warm, hot, select(0.3, 0.88, particle.params.y > 2.5));
         }
         let emission = mix(1.0, frame.fire_audio_body.x, frame.fire_base.w);
-        color *= 0.82 + emission * 0.18;
+        color *= select(1.05 + emission * 0.55, 1.35 + emission * 0.85, particle.params.y >= 1.0);
         alpha = select(
             mix(0.06, 0.006, smoothstep(0.22, 1.0, age01)),
             mix(0.34, 0.08, age01),
@@ -355,11 +362,17 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
         );
         if (particle.params.y < 1.0) {
             let height = clamp((particle.position_age.y + 0.86) / 1.8, 0.0, 1.0);
+            let tongue = select(-1.0, 1.0, particle.params.z > 0.5);
+            let tongue_center = tongue * height * height * 0.2
+                + sin(height * 7.0 - frame.simulation_time * 2.3 + tongue) * height * 0.1;
+            let tongue_width = mix(frame.initialization_params.x * 1.05, 0.065, smoothstep(0.2, 1.0, height));
+            let tongue_density = 1.0 - smoothstep(tongue_width * 0.62, tongue_width, abs(particle.position_age.x - tongue_center));
             let structure = sin(particle.position_age.x * 8.0 + frame.simulation_time * 2.1)
                 + sin(particle.position_age.z * 10.0 - frame.simulation_time * 1.7)
                 + sin(height * 13.0 - frame.simulation_time * 3.2);
             let tongue_mask = smoothstep(-1.1, 0.55, structure - height * 0.7);
             alpha *= mix(1.0, 0.18 + tongue_mask * 0.82, smoothstep(0.28, 0.9, height));
+            alpha *= mix(1.0, tongue_density, smoothstep(0.3, 0.86, height));
         }
     }
     let depth_brightness = 1.0 - depth_mix * frame.particle_depth_response.w;

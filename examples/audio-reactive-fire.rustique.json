@@ -5,9 +5,9 @@
   "fps": 60,
   "duration_seconds": 10.0,
   "particle_system": {
-    "count": 350000,
+    "count": 140000,
     "substeps": 2,
-    "emitter": { "type": "burst", "count": 350000, "frame": 0, "respawn": "loop" }
+    "emitter": { "type": "burst", "count": 140000, "frame": 0, "respawn": "loop" }
   },
   "forces": [],
   "camera": { "position": [0.0, 0.0, 3.0], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 45.0 },

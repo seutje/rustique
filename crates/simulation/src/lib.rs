@@ -567,8 +567,12 @@ fn initialize_fire(
     let tongue_sway = if is_spark {
         0.0
     } else {
-        let tongue = (unit(hash(seed, index, 12)) * 3.0).floor() - 1.0;
-        tongue * age01 * age01 * 0.2 + (age01 * 8.0 + tongue).sin() * age01 * 0.055
+        let tongue = if unit(hash(seed, index, 12)) < 0.5 {
+            -1.0
+        } else {
+            1.0
+        };
+        tongue * age01 * age01 * 0.24 + (age01 * 8.0 + tongue).sin() * age01 * 0.06
     };
     let height = if is_spark {
         -0.86 + upward * age * 0.65 - 0.08 * age * age

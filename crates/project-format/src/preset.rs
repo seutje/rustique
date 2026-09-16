@@ -464,7 +464,7 @@ mod tests {
                 audio_reactivity,
                 spark_ratio,
                 ..
-            } if audio_reactivity > 0.0 && audio_reactivity <= 0.3 && spark_ratio > 0.0
+            } if audio_reactivity > 0.0 && audio_reactivity <= 0.5 && spark_ratio > 0.0
         ));
         for (source, target) in [
             (

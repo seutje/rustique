@@ -4,29 +4,29 @@
   "display_name": "Audio-Reactive Fire",
   "description": "Autonomous multi-scale procedural flame with musically coherent body motion, temperature shifts, and transient embers.",
   "particle_system": {
-    "count": 350000,
+    "count": 140000,
     "substeps": 2,
-    "emitter": { "type": "burst", "count": 350000, "frame": 0, "respawn": "loop" },
+    "emitter": { "type": "burst", "count": 140000, "frame": 0, "respawn": "loop" },
     "initialization": {
       "type": "fire",
-      "base_radius": 0.42,
-      "flame_height": 1.12,
-      "lifetime_seconds": 1.35,
-      "lifetime_variation": 0.28,
-      "buoyancy": 0.82,
-      "turbulence": 0.72,
-      "flicker": 0.58,
-      "spark_ratio": 0.035,
-      "spark_velocity": 1.65,
-      "spark_lifetime": 1.05,
-      "audio_reactivity": 0.28,
-      "temperature": 0.52,
-      "beat_wave_strength": 0.22
+      "base_radius": 0.33,
+      "flame_height": 1.18,
+      "lifetime_seconds": 1.28,
+      "lifetime_variation": 0.34,
+      "buoyancy": 0.92,
+      "turbulence": 0.9,
+      "flicker": 0.74,
+      "spark_ratio": 0.028,
+      "spark_velocity": 1.85,
+      "spark_lifetime": 0.92,
+      "audio_reactivity": 0.42,
+      "temperature": 0.38,
+      "beat_wave_strength": 0.3
     },
     "boundary": "unbounded"
   },
   "forces": [
-    { "type": "drag", "coefficient": 0.42 }
+    { "type": "drag", "coefficient": 0.36 }
   ],
   "camera": {
     "position": [0.0, 0.02, 3.15],
@@ -41,7 +41,7 @@
   "render_defaults": {
     "width": 1920,
     "height": 1080,
-    "particle_size_pixels": 3.2,
+    "particle_size_pixels": 3.5,
     "particle_depth_near": 2.5,
     "particle_depth_far": 4.0,
     "particle_depth_size_strength": 0.35,
@@ -49,30 +49,30 @@
     "background": [0.002, 0.0, 0.0, 1.0]
   },
   "macros": [
-    { "id": "fire_amount", "label": "Fire Amount", "target": "particle_count", "minimum": 100000.0, "maximum": 2000000.0, "default": 350000.0 },
-    { "id": "base_radius", "label": "Base Radius", "target": "fire_base_radius", "minimum": 0.15, "maximum": 0.8, "default": 0.42 },
-    { "id": "flame_height", "label": "Base Flame Height", "target": "fire_height", "minimum": 0.55, "maximum": 2.0, "default": 1.12 },
-    { "id": "buoyancy", "label": "Buoyancy", "target": "fire_buoyancy", "minimum": 0.2, "maximum": 1.8, "default": 0.82 },
-    { "id": "turbulence", "label": "Turbulence", "target": "fire_turbulence", "minimum": 0.15, "maximum": 1.8, "default": 0.72 },
-    { "id": "flicker", "label": "Flicker", "target": "fire_flicker", "minimum": 0.1, "maximum": 1.5, "default": 0.58 },
-    { "id": "spark_amount", "label": "Spark Amount", "target": "fire_spark_amount", "minimum": 0.0, "maximum": 0.2, "default": 0.035 },
-    { "id": "spark_velocity", "label": "Spark Velocity", "target": "fire_spark_velocity", "minimum": 0.5, "maximum": 3.0, "default": 1.65 },
-    { "id": "spark_lifetime", "label": "Spark Lifetime", "target": "fire_spark_lifetime", "minimum": 0.25, "maximum": 2.5, "default": 1.05 },
-    { "id": "temperature", "label": "Flame Temperature", "target": "fire_temperature", "minimum": 0.0, "maximum": 1.0, "default": 0.52 },
-    { "id": "audio_reactivity", "label": "Audio Reactivity", "target": "fire_audio_reactivity", "minimum": 0.0, "maximum": 0.6, "default": 0.28 },
-    { "id": "beat_wave", "label": "Beat Wave", "target": "fire_beat_wave", "minimum": 0.0, "maximum": 0.8, "default": 0.22 }
+    { "id": "fire_amount", "label": "Fire Amount", "target": "particle_count", "minimum": 50000.0, "maximum": 2000000.0, "default": 140000.0 },
+    { "id": "base_radius", "label": "Base Radius", "target": "fire_base_radius", "minimum": 0.15, "maximum": 0.8, "default": 0.33 },
+    { "id": "flame_height", "label": "Base Flame Height", "target": "fire_height", "minimum": 0.55, "maximum": 2.0, "default": 1.18 },
+    { "id": "buoyancy", "label": "Buoyancy", "target": "fire_buoyancy", "minimum": 0.2, "maximum": 1.8, "default": 0.92 },
+    { "id": "turbulence", "label": "Turbulence", "target": "fire_turbulence", "minimum": 0.15, "maximum": 1.8, "default": 0.9 },
+    { "id": "flicker", "label": "Flicker", "target": "fire_flicker", "minimum": 0.1, "maximum": 1.5, "default": 0.74 },
+    { "id": "spark_amount", "label": "Spark Amount", "target": "fire_spark_amount", "minimum": 0.0, "maximum": 0.2, "default": 0.028 },
+    { "id": "spark_velocity", "label": "Spark Velocity", "target": "fire_spark_velocity", "minimum": 0.5, "maximum": 3.0, "default": 1.85 },
+    { "id": "spark_lifetime", "label": "Spark Lifetime", "target": "fire_spark_lifetime", "minimum": 0.25, "maximum": 2.5, "default": 0.92 },
+    { "id": "temperature", "label": "Flame Temperature", "target": "fire_temperature", "minimum": 0.0, "maximum": 1.0, "default": 0.38 },
+    { "id": "audio_reactivity", "label": "Audio Reactivity", "target": "fire_audio_reactivity", "minimum": 0.0, "maximum": 0.7, "default": 0.42 },
+    { "id": "beat_wave", "label": "Beat Wave", "target": "fire_beat_wave", "minimum": 0.0, "maximum": 0.8, "default": 0.3 }
   ],
   "recommended_mappings": [
-    { "source": "rms", "target": "fire_emission", "amount": 0.45, "offset": 0.82, "minimum": 0.82, "maximum": 1.27, "polarity": "normal", "curve": "linear", "attack_seconds": 0.08, "release_seconds": 0.38 },
-    { "source": "rms", "target": "brightness", "amount": 0.32, "offset": 0.88, "minimum": 0.88, "maximum": 1.2, "polarity": "normal", "curve": "linear", "attack_seconds": 0.08, "release_seconds": 0.4 },
-    { "source": "sub", "target": "fire_base_width", "amount": 0.42, "offset": 0.9, "minimum": 0.9, "maximum": 1.32, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.035, "release_seconds": 0.32 },
-    { "source": "bass", "target": "fire_height", "amount": 0.68, "offset": 0.88, "minimum": 0.88, "maximum": 1.56, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.03, "release_seconds": 0.28 },
-    { "source": "low_mids", "target": "fire_sway", "amount": 0.85, "offset": 0.72, "minimum": 0.72, "maximum": 1.57, "polarity": "normal", "curve": "linear", "attack_seconds": 0.075, "release_seconds": 0.42 },
-    { "source": "mids", "target": "fire_turbulence", "amount": 1.15, "offset": 0.72, "minimum": 0.72, "maximum": 1.87, "polarity": "normal", "curve": "linear", "attack_seconds": 0.045, "release_seconds": 0.3 },
-    { "source": "high_mids", "target": "fire_flicker", "amount": 1.3, "offset": 0.68, "minimum": 0.68, "maximum": 1.98, "polarity": "normal", "curve": "linear", "attack_seconds": 0.025, "release_seconds": 0.18 },
-    { "source": "highs", "target": "fire_shimmer", "amount": 1.65, "offset": 0.62, "minimum": 0.62, "maximum": 2.27, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.012, "release_seconds": 0.12 },
-    { "source": "transient", "target": "fire_sparks", "amount": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.16 },
-    { "source": "spectral_centroid", "target": "fire_temperature", "amount": 0.78, "offset": -0.12, "minimum": -0.12, "maximum": 0.66, "polarity": "normal", "curve": "linear", "attack_seconds": 0.14, "release_seconds": 0.5 },
-    { "source": "transient", "target": "fire_beat_wave", "amount": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.34 }
+    { "source": "rms", "target": "fire_emission", "amount": 0.62, "offset": 0.78, "minimum": 0.78, "maximum": 1.4, "polarity": "normal", "curve": "linear", "attack_seconds": 0.055, "release_seconds": 0.32 },
+    { "source": "rms", "target": "brightness", "amount": 0.55, "offset": 0.82, "minimum": 0.82, "maximum": 1.37, "polarity": "normal", "curve": "linear", "attack_seconds": 0.06, "release_seconds": 0.34 },
+    { "source": "sub", "target": "fire_base_width", "amount": 0.58, "offset": 0.86, "minimum": 0.86, "maximum": 1.44, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.028, "release_seconds": 0.34 },
+    { "source": "bass", "target": "fire_height", "amount": 0.92, "offset": 0.86, "minimum": 0.86, "maximum": 1.78, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.025, "release_seconds": 0.3 },
+    { "source": "low_mids", "target": "fire_sway", "amount": 1.12, "offset": 0.66, "minimum": 0.66, "maximum": 1.78, "polarity": "normal", "curve": "linear", "attack_seconds": 0.06, "release_seconds": 0.38 },
+    { "source": "mids", "target": "fire_turbulence", "amount": 1.5, "offset": 0.64, "minimum": 0.64, "maximum": 2.14, "polarity": "normal", "curve": "linear", "attack_seconds": 0.035, "release_seconds": 0.26 },
+    { "source": "high_mids", "target": "fire_flicker", "amount": 1.7, "offset": 0.6, "minimum": 0.6, "maximum": 2.3, "polarity": "normal", "curve": "linear", "attack_seconds": 0.018, "release_seconds": 0.15 },
+    { "source": "highs", "target": "fire_shimmer", "amount": 2.1, "offset": 0.55, "minimum": 0.55, "maximum": 2.65, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.008, "release_seconds": 0.1 },
+    { "source": "transient", "target": "fire_sparks", "amount": 1.3, "offset": 0.0, "minimum": 0.0, "maximum": 1.3, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.19 },
+    { "source": "spectral_centroid", "target": "fire_temperature", "amount": 0.95, "offset": -0.16, "minimum": -0.16, "maximum": 0.79, "polarity": "normal", "curve": "linear", "attack_seconds": 0.11, "release_seconds": 0.46 },
+    { "source": "transient", "target": "fire_beat_wave", "amount": 1.25, "offset": 0.0, "minimum": 0.0, "maximum": 1.25, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.38 }
   ]
 }

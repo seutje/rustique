@@ -32,6 +32,12 @@ pub enum ParticleInitialization {
         spawn_spread_seconds: f32,
         #[serde(default)]
         lifetime_variation: f32,
+        /// Fraction of particles placed in a compact spherical central bulge.
+        #[serde(default)]
+        bulge_fraction: f32,
+        /// Fraction of particles placed in a sparse spherical outer halo.
+        #[serde(default)]
+        halo_fraction: f32,
     },
     /// Dense, continuously respawning flame column. The GPU update path owns
     /// fire motion; these values only define its autonomous baseline.
@@ -467,37 +473,8 @@ pub fn initialize_particles_with(
                         0.0,
                     )
                 }
-                ParticleInitialization::GalacticDisk {
-                    radius,
-                    thickness,
-                    lifetime_seconds,
-                    spawn_spread_seconds,
-                    lifetime_variation,
-                } => {
-                    let radial = unit(hash(seed, index, 0)).sqrt() * radius;
-                    let angle = unit(hash(seed, index, 1)) * std::f32::consts::TAU;
-                    let (sin, cos) = angle.sin_cos();
-                    // Match the 0.1-strength central well used by the galaxy
-                    // preset, with slight deterministic variation for arm texture.
-                    let orbital_speed = (0.1 / radial.max(0.12)).sqrt().min(0.75);
-                    let tangential_speed = orbital_speed * (0.9 + unit(hash(seed, index, 3)) * 0.2);
-                    let lifetime = lifetime_seconds
-                        * (1.0 + signed_unit(hash(seed, index, 9)) * lifetime_variation);
-                    (
-                        [
-                            radial * cos,
-                            radial * sin,
-                            signed_unit(hash(seed, index, 2)) * thickness,
-                        ],
-                        [
-                            -sin * tangential_speed,
-                            cos * tangential_speed,
-                            signed_unit(hash(seed, index, 8)) * 0.005,
-                        ],
-                        0.0,
-                        lifetime,
-                        unit(hash(seed, index, 10)) * spawn_spread_seconds,
-                    )
+                ParticleInitialization::GalacticDisk { .. } => {
+                    initialize_galactic(seed, index, initialization)
                 }
                 ParticleInitialization::Fire { .. } => initialize_fire(seed, index, initialization),
             };
@@ -513,7 +490,20 @@ pub fn initialize_particles_with(
                 // params.x is the absolute simulation time at which this particle appears.
                 params: [
                     spawn_time,
-                    fire_spark_class(seed, index, initialization),
+                    match initialization {
+                        ParticleInitialization::GalacticDisk {
+                            bulge_fraction,
+                            halo_fraction,
+                            ..
+                        } => {
+                            match galactic_population(seed, index, bulge_fraction, halo_fraction) {
+                                1 => 1.0,
+                                2 => 2.0,
+                                _ => 0.0,
+                            }
+                        }
+                        _ => fire_spark_class(seed, index, initialization),
+                    },
                     unit(hash(seed, index, 12)),
                     unit(hash(seed, index, 13)),
                 ],
@@ -522,7 +512,108 @@ pub fn initialize_particles_with(
         .collect()
 }
 
+fn galactic_population(seed: u64, index: u32, bulge_fraction: f32, halo_fraction: f32) -> u32 {
+    let selection = unit(hash(seed, index, 11));
+    if selection < bulge_fraction {
+        1
+    } else if selection < bulge_fraction + halo_fraction {
+        2
+    } else {
+        0
+    }
+}
+
 type InitialParticleState = ([f32; 3], [f32; 3], f32, f32, f32);
+
+fn initialize_galactic(
+    seed: u64,
+    index: u32,
+    initialization: ParticleInitialization,
+) -> InitialParticleState {
+    let ParticleInitialization::GalacticDisk {
+        radius,
+        thickness,
+        lifetime_seconds,
+        spawn_spread_seconds,
+        lifetime_variation,
+        bulge_fraction,
+        halo_fraction,
+    } = initialization
+    else {
+        unreachable!("galactic initialization helper requires galactic parameters");
+    };
+    let population = galactic_population(seed, index, bulge_fraction, halo_fraction);
+    let radial_random = unit(hash(seed, index, 0));
+    let angle = unit(hash(seed, index, 1)) * std::f32::consts::TAU;
+    let (sin, cos) = angle.sin_cos();
+    let (position, velocity_radius, speed_scale) = match population {
+        1 => spherical_galactic_position(
+            radius * radial_random.cbrt() * 0.34,
+            seed,
+            index,
+            sin,
+            cos,
+            0.72,
+        ),
+        2 => spherical_galactic_position(
+            radius * (0.55 + radial_random * 0.7),
+            seed,
+            index,
+            sin,
+            cos,
+            0.42,
+        ),
+        _ => {
+            let radial = radial_random.sqrt() * radius;
+            let flare = 0.35 + 0.65 * radial / radius.max(0.001);
+            (
+                [
+                    radial * cos,
+                    radial * sin,
+                    signed_unit(hash(seed, index, 2)) * thickness * flare,
+                ],
+                radial,
+                1.0,
+            )
+        }
+    };
+    let orbital_speed = (0.1 / velocity_radius.max(0.12)).sqrt().min(0.75);
+    let tangential_speed = orbital_speed * (0.9 + unit(hash(seed, index, 3)) * 0.2) * speed_scale;
+    let lifetime =
+        lifetime_seconds * (1.0 + signed_unit(hash(seed, index, 9)) * lifetime_variation);
+    (
+        position,
+        [
+            -sin * tangential_speed,
+            cos * tangential_speed,
+            signed_unit(hash(seed, index, 8)) * 0.005 * speed_scale,
+        ],
+        0.0,
+        lifetime,
+        unit(hash(seed, index, 10)) * spawn_spread_seconds,
+    )
+}
+
+fn spherical_galactic_position(
+    radius: f32,
+    seed: u64,
+    index: u32,
+    sin: f32,
+    cos: f32,
+    speed_scale: f32,
+) -> ([f32; 3], f32, f32) {
+    let z_direction = signed_unit(hash(seed, index, 2));
+    let planar = (1.0 - z_direction * z_direction).sqrt();
+    (
+        [
+            radius * planar * cos,
+            radius * planar * sin,
+            radius * z_direction,
+        ],
+        radius * planar,
+        speed_scale,
+    )
+}
 
 fn initialize_fire(
     seed: u64,
@@ -714,6 +805,8 @@ mod tests {
                 lifetime_seconds: 30.0,
                 spawn_spread_seconds: 3.0,
                 lifetime_variation: 0.4,
+                bulge_fraction: 0.0,
+                halo_fraction: 0.0,
             },
         );
         assert!(particles.iter().all(|particle| {
@@ -725,6 +818,38 @@ mod tests {
         assert!(particles.windows(2).any(|pair| {
             (pair[0].velocity_lifetime[3] - pair[1].velocity_lifetime[3]).abs() > f32::EPSILON
         }));
+    }
+
+    #[test]
+    fn galactic_bulge_and_halo_add_seeded_depth() {
+        let particles = initialize_particles_with(
+            10_000,
+            42,
+            ParticleInitialization::GalacticDisk {
+                radius: 0.8,
+                thickness: 0.04,
+                lifetime_seconds: 30.0,
+                spawn_spread_seconds: 0.0,
+                lifetime_variation: 0.0,
+                bulge_fraction: 0.2,
+                halo_fraction: 0.1,
+            },
+        );
+        let bulge = particles
+            .iter()
+            .filter(|particle| (particle.params[1] - 1.0).abs() < f32::EPSILON)
+            .count();
+        let halo = particles
+            .iter()
+            .filter(|particle| (particle.params[1] - 2.0).abs() < f32::EPSILON)
+            .count();
+        assert!((1_700..=2_300).contains(&bulge));
+        assert!((800..=1_200).contains(&halo));
+        assert!(
+            particles
+                .iter()
+                .any(|particle| particle.position_age[2].abs() > 0.2)
+        );
     }
 
     #[test]

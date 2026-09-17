@@ -534,6 +534,7 @@ Add reusable procedural camera behaviors.
 - [x] Add procedural drift
 - [x] Add FOV modulation
 - [x] Add audio-reactive camera shake
+- [x] Add particle depth-of-field / bokeh response
 - [x] Serialize camera settings
 - [x] Keep camera independent from render resolution
 

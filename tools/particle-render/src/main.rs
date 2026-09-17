@@ -1599,6 +1599,8 @@ fn render_project_still(
             BenchmarkConfig {
                 particle_size_pixels: project.render_defaults.particle_size_pixels,
                 particle_depth_response: project.render_defaults.particle_depth_response(),
+                particle_depth_color: project.render_defaults.particle_depth_color(),
+                particle_optics: project.render_defaults.particle_optics(),
                 position_scale: 1.0,
                 view_projection: Some(project_camera_matrix(
                     &project,
@@ -1764,6 +1766,8 @@ fn render_scene_layer(
                     BenchmarkConfig {
                         particle_size_pixels: project.render_defaults.particle_size_pixels,
                         particle_depth_response: project.render_defaults.particle_depth_response(),
+                        particle_depth_color: project.render_defaults.particle_depth_color(),
+                        particle_optics: project.render_defaults.particle_optics(),
                         view_projection: Some(project_camera_matrix(
                             project,
                             options.frame as f32 / project.fps as f32,

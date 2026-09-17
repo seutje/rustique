@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{ActiveModulation, ModulationTarget};
+use crate::{ActiveModulation, ModulationCombine, ModulationTarget};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -72,6 +72,7 @@ pub fn evaluate_automation(
                 target: track.target,
                 source_value: value,
                 output_value: value,
+                combine: ModulationCombine::Replace,
             })
         })
         .collect()

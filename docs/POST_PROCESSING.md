@@ -7,8 +7,9 @@ two reusable HDR history textures, and a final pass applies bloom, exposure,
 tone mapping, vignette, optional chromatic aberration, and the gamma transform.
 
 No textures are allocated per frame. At 3840x2160, the three HDR textures and
-one RGBA8 output texture use about 221.5 MiB. The separate readback buffer uses
-about 31.6 MiB.
+one RGBA8 output texture use about 221.5 MiB. The reusable 32-bit scene-depth
+texture adds about 31.6 MiB, and the separate readback buffer uses another
+31.6 MiB.
 
 Use `--post-quality draft|preview|final` with project still, sequence, and video
 commands. Draft disables optional effects, Preview enables tone mapping and

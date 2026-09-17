@@ -27,6 +27,10 @@ struct FrameUniforms {
     lifecycle_params: vec4<f32>,
     // Camera-space near/far distances followed by size/brightness strengths.
     particle_depth_response: vec4<f32>,
+    // Atmospheric tint RGB and tint/desaturation strength.
+    particle_depth_color: vec4<f32>,
+    // Glow strength, focus distance, focus range, bokeh strength.
+    particle_optics: vec4<f32>,
     // Fire data is kept in the shared frame uniform so the existing single
     // compute/render pass remains sufficient for millions of particles.
     fire_base: vec4<f32>,
@@ -195,19 +199,48 @@ fn update(@builtin(global_invocation_id) id: vec3<u32>) {
         let generation = frame.frame_index + 1u;
         let base = index ^ frame.simulation_seed ^ generation * 0x9e3779b9u;
         if (frame.initialization_mode == 1u) {
-            let radial = sqrt(random_unit(base)) * frame.initialization_params.x;
+            let radial_random = random_unit(base);
             let angle = random_unit(base ^ 0x68bc21ebu) * 6.28318530718;
             let radial_direction = vec2<f32>(cos(angle), sin(angle));
-            let z = (random_unit(base ^ 0x967a889bu) * 2.0 - 1.0)
-                * frame.initialization_params.y;
-            let orbital_speed = min(sqrt(0.1 / max(radial, 0.12)), 0.75);
+            let population_pick = random_unit(base ^ 0x7f4a7c15u);
+            let bulge_fraction = frame.initialization_params.w;
+            let halo_fraction = frame.lifecycle_params.w;
+            var population = 0.0;
+            var position = vec3<f32>(0.0);
+            var velocity_radius = 0.0;
+            var speed_scale = 1.0;
+            if (population_pick < bulge_fraction) {
+                population = 1.0;
+                let spherical_radius = pow(radial_random, 0.3333333) * frame.initialization_params.x * 0.34;
+                let z_direction = random_unit(base ^ 0x967a889bu) * 2.0 - 1.0;
+                let planar = sqrt(max(1.0 - z_direction * z_direction, 0.0));
+                position = vec3<f32>(radial_direction * spherical_radius * planar, spherical_radius * z_direction);
+                velocity_radius = spherical_radius * planar;
+                speed_scale = 0.72;
+            } else if (population_pick < bulge_fraction + halo_fraction) {
+                population = 2.0;
+                let spherical_radius = frame.initialization_params.x * (0.55 + radial_random * 0.7);
+                let z_direction = random_unit(base ^ 0x967a889bu) * 2.0 - 1.0;
+                let planar = sqrt(max(1.0 - z_direction * z_direction, 0.0));
+                position = vec3<f32>(radial_direction * spherical_radius * planar, spherical_radius * z_direction);
+                velocity_radius = spherical_radius * planar;
+                speed_scale = 0.42;
+            } else {
+                let radial = sqrt(radial_random) * frame.initialization_params.x;
+                let flare = 0.35 + 0.65 * radial / max(frame.initialization_params.x, 0.001);
+                let z = (random_unit(base ^ 0x967a889bu) * 2.0 - 1.0)
+                    * frame.initialization_params.y * flare;
+                position = vec3<f32>(radial_direction * radial, z);
+                velocity_radius = radial;
+            }
+            let orbital_speed = min(sqrt(0.1 / max(velocity_radius, 0.12)), 0.75);
             let speed_variation = 0.9 + random_unit(base ^ 0x02e5be93u) * 0.2;
-            let speed = orbital_speed * speed_variation;
-            let z_velocity = (random_unit(base ^ 0xd3a2646cu) * 2.0 - 1.0) * 0.005;
+            let speed = orbital_speed * speed_variation * speed_scale;
+            let z_velocity = (random_unit(base ^ 0xd3a2646cu) * 2.0 - 1.0) * 0.005 * speed_scale;
             let lifetime_scale = 1.0
                 + (random_unit(base ^ 0xa511e9b3u) * 2.0 - 1.0) * frame.lifecycle_params.y;
             let respawn_delay = random_unit(base ^ 0x63d83595u) * frame.lifecycle_params.x;
-            particle.position_age = vec4<f32>(radial_direction * radial, z, 0.0);
+            particle.position_age = vec4<f32>(position, 0.0);
             particle.velocity_lifetime = vec4<f32>(
                 -radial_direction.y * speed,
                 radial_direction.x * speed,
@@ -215,6 +248,7 @@ fn update(@builtin(global_invocation_id) id: vec3<u32>) {
                 frame.initialization_params.z * lifetime_scale,
             );
             particle.params.x = frame.simulation_time + respawn_delay;
+            particle.params.y = population;
         } else if (frame.initialization_mode == 2u) {
             let audio = frame.fire_base.w;
             let body = mix(vec4<f32>(1.0), frame.fire_audio_body, vec4<f32>(audio));
@@ -278,6 +312,7 @@ struct VertexOutput {
     @location(0) color: vec4<f32>,
     @location(1) quad: vec2<f32>,
     @location(2) fire: f32,
+    @location(3) focus_blur: f32,
 }
 
 fn hsv_to_rgb(hsv: vec3<f32>) -> vec3<f32> {
@@ -298,8 +333,19 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
     let depth_near = frame.particle_depth_response.x;
     let depth_far = max(frame.particle_depth_response.y, depth_near + 0.001);
     let depth_mix = smoothstep(depth_near, depth_far, view_depth);
-    let perspective_scale = clamp(depth_near / view_depth, 0.25, 2.0);
-    let size_scale = mix(1.0, perspective_scale, frame.particle_depth_response.z);
+    let size_strength = frame.particle_depth_response.z;
+    let near_size = 1.0 + size_strength * 0.6;
+    let far_size = max(0.2, 1.0 - size_strength * 0.75);
+    let size_scale = mix(near_size, far_size, depth_mix);
+    let focus_distance = frame.particle_optics.y;
+    let focus_range = max(frame.particle_optics.z, 0.001);
+    let focus_blur = smoothstep(
+        focus_range * 0.35,
+        focus_range,
+        abs(view_depth - focus_distance),
+    ) * frame.particle_optics.w;
+    let bokeh_scale = 1.0 + focus_blur * 1.6;
+    let halo_scale = 1.0 + frame.particle_optics.x * 0.9;
     let corner = corners[index % 6u];
     var particle_size = frame.particle_size_pixels;
     var quad_scale = vec2<f32>(1.0);
@@ -315,6 +361,8 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
     let offset = corner * quad_scale
         * particle_size
         * size_scale
+        * bokeh_scale
+        * halo_scale
         / frame.viewport_size;
     position = vec4<f32>(position.xy + offset * position.w, position.zw);
     if (
@@ -326,6 +374,7 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
     output.position = position;
     output.quad = corner;
     output.fire = select(0.0, 1.0, frame.initialization_mode == 2u);
+    output.focus_blur = focus_blur;
     var color = particle.color.rgb;
     var alpha = particle.color.a;
     if (frame.initialization_mode == 1u) {
@@ -375,7 +424,12 @@ fn vertex(@builtin(vertex_index) index: u32) -> VertexOutput {
             alpha *= mix(1.0, tongue_density, smoothstep(0.3, 0.86, height));
         }
     }
+    let luminance = dot(color, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let atmosphere = depth_mix * frame.particle_depth_color.w;
+    color = mix(color, vec3<f32>(luminance), atmosphere * 0.45);
+    color = mix(color, frame.particle_depth_color.rgb, atmosphere * 0.35);
     let depth_brightness = 1.0 - depth_mix * frame.particle_depth_response.w;
+    alpha /= 1.0 + focus_blur * 1.4;
     output.color = vec4<f32>(color * frame.brightness * depth_brightness, alpha);
     return output;
 }
@@ -388,5 +442,21 @@ fn fragment(input: VertexOutput) -> @location(0) vec4<f32> {
         if (alpha <= 0.002) { discard; }
         return vec4<f32>(input.color.rgb, input.color.a * alpha);
     }
-    return input.color;
+    let radius = length(input.quad);
+    let core_radius = 1.0 / (1.0 + frame.particle_optics.x * 0.9);
+    let coverage = 1.0 - smoothstep(core_radius * 0.72, core_radius, radius);
+    // The depth-writing core is alpha-tested so faint edges cannot occlude a
+    // brighter particle behind them. Softness comes from the read-only glow pass.
+    if (coverage < 0.5) { discard; }
+    return vec4<f32>(input.color.rgb, 1.0);
+}
+
+@fragment
+fn fragment_glow(input: VertexOutput) -> @location(0) vec4<f32> {
+    let glow_strength = frame.particle_optics.x + input.focus_blur * 0.18;
+    if (input.fire > 0.5 || glow_strength <= 0.0) { discard; }
+    let radius = length(input.quad);
+    if (radius >= 1.0) { discard; }
+    let halo = pow(1.0 - radius, 2.2) * glow_strength;
+    return vec4<f32>(input.color.rgb * halo, 0.0);
 }

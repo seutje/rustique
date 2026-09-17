@@ -12,6 +12,7 @@ use crate::{
     GpuContext, OffscreenError, OffscreenRenderTarget, RgbaColor,
     dispatch::dispatch_dimensions,
     flocking::{FlockingModulation, FlockingResources},
+    offscreen::DEPTH_FORMAT,
     post_process::HDR_FORMAT,
 };
 
@@ -42,6 +43,10 @@ pub struct FrameUniforms {
     pub lifecycle_params: [f32; 4],
     /// near distance, far distance, size strength, brightness strength.
     pub particle_depth_response: [f32; 4],
+    /// atmospheric tint RGB and tint/desaturation strength.
+    pub particle_depth_color: [f32; 4],
+    /// glow strength, focus distance, focus range, bokeh strength.
+    pub particle_optics: [f32; 4],
     /// Autonomous fire controls: buoyancy, turbulence, flicker, audio master.
     pub fire_base: [f32; 4],
     /// Fire palette and wave controls: temperature, beat wave, unused, unused.
@@ -54,7 +59,7 @@ pub struct FrameUniforms {
     pub fire_audio_accent: [f32; 4],
 }
 
-const _: () = assert!(size_of::<FrameUniforms>() == 256);
+const _: () = assert!(size_of::<FrameUniforms>() == 288);
 
 #[derive(Clone, Copy, Debug)]
 pub struct FireModulation {
@@ -96,6 +101,8 @@ pub struct BenchmarkConfig {
     pub hue_shift: f32,
     /// Camera-space near/far distances and size/brightness response strengths.
     pub particle_depth_response: [f32; 4],
+    pub particle_depth_color: [f32; 4],
+    pub particle_optics: [f32; 4],
     pub active_particle_count: Option<u32>,
     pub view_projection: Option<[[f32; 4]; 4]>,
     pub flocking: FlockingModulation,
@@ -111,6 +118,8 @@ impl Default for BenchmarkConfig {
             brightness: 1.0,
             hue_shift: 0.0,
             particle_depth_response: [1.0, 10.0, 0.0, 0.0],
+            particle_depth_color: [0.0; 4],
+            particle_optics: [0.0, 3.0, 1.0, 0.0],
             active_particle_count: None,
             view_projection: None,
             flocking: FlockingModulation::default(),
@@ -153,6 +162,8 @@ pub struct ParticleRenderer {
     bind_groups: [wgpu::BindGroup; 2],
     compute_pipeline: wgpu::ComputePipeline,
     render_pipeline: wgpu::RenderPipeline,
+    translucent_pipeline: wgpu::RenderPipeline,
+    glow_pipeline: wgpu::RenderPipeline,
     source_index: usize,
     timing: Option<TimingResources>,
     seed: u64,
@@ -269,7 +280,9 @@ impl ParticleRenderer {
                     storage_entry(1, false, wgpu::ShaderStages::COMPUTE),
                     wgpu::BindGroupLayoutEntry {
                         binding: 2,
-                        visibility: wgpu::ShaderStages::COMPUTE | wgpu::ShaderStages::VERTEX,
+                        visibility: wgpu::ShaderStages::COMPUTE
+                            | wgpu::ShaderStages::VERTEX
+                            | wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
@@ -325,37 +338,44 @@ impl ParticleRenderer {
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     cache: None,
                 });
-        let render_pipeline =
-            context
-                .device
-                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some("particle-render-pipeline"),
-                    layout: Some(&pipeline_layout),
-                    vertex: wgpu::VertexState {
-                        module: &shader,
-                        entry_point: Some("vertex"),
-                        compilation_options: wgpu::PipelineCompilationOptions::default(),
-                        buffers: &[],
-                    },
-                    fragment: Some(wgpu::FragmentState {
-                        module: &shader,
-                        entry_point: Some("fragment"),
-                        compilation_options: wgpu::PipelineCompilationOptions::default(),
-                        targets: &[Some(wgpu::ColorTargetState {
-                            format: HDR_FORMAT,
-                            blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                            write_mask: wgpu::ColorWrites::ALL,
-                        })],
-                    }),
-                    primitive: wgpu::PrimitiveState {
-                        topology: wgpu::PrimitiveTopology::TriangleList,
-                        ..Default::default()
-                    },
-                    depth_stencil: None,
-                    multisample: wgpu::MultisampleState::default(),
-                    multiview: None,
-                    cache: None,
-                });
+        let render_pipeline = particle_pipeline(
+            &context.device,
+            &pipeline_layout,
+            &shader,
+            "fragment",
+            wgpu::BlendState::ALPHA_BLENDING,
+            true,
+            "particle-render-pipeline",
+        );
+        let translucent_pipeline = particle_pipeline(
+            &context.device,
+            &pipeline_layout,
+            &shader,
+            "fragment",
+            wgpu::BlendState::ALPHA_BLENDING,
+            false,
+            "particle-translucent-pipeline",
+        );
+        let glow_pipeline = particle_pipeline(
+            &context.device,
+            &pipeline_layout,
+            &shader,
+            "fragment_glow",
+            wgpu::BlendState {
+                color: wgpu::BlendComponent {
+                    src_factor: wgpu::BlendFactor::One,
+                    dst_factor: wgpu::BlendFactor::One,
+                    operation: wgpu::BlendOperation::Add,
+                },
+                alpha: wgpu::BlendComponent {
+                    src_factor: wgpu::BlendFactor::Zero,
+                    dst_factor: wgpu::BlendFactor::One,
+                    operation: wgpu::BlendOperation::Add,
+                },
+            },
+            false,
+            "particle-glow-pipeline",
+        );
         Ok(Self {
             particle_count,
             buffers,
@@ -364,6 +384,8 @@ impl ParticleRenderer {
             bind_groups,
             compute_pipeline,
             render_pipeline,
+            translucent_pipeline,
+            glow_pipeline,
             source_index: 0,
             timing: create_timing_resources(context),
             seed,
@@ -510,6 +532,8 @@ impl ParticleRenderer {
                     initialization_params,
                     lifecycle_params,
                     particle_depth_response: render_config.particle_depth_response,
+                    particle_depth_color: render_config.particle_depth_color,
+                    particle_optics: render_config.particle_optics,
                     fire_base: fire_uniforms.0,
                     fire_style: fire_uniforms.1,
                     fire_audio_body: fire_uniforms.2,
@@ -584,6 +608,8 @@ impl ParticleRenderer {
             initialization_params,
             lifecycle_params,
             particle_depth_response: render_config.particle_depth_response,
+            particle_depth_color: render_config.particle_depth_color,
+            particle_optics: render_config.particle_optics,
             fire_base: fire_uniforms.0,
             fire_style: fire_uniforms.1,
             fire_audio_body: fire_uniforms.2,
@@ -610,13 +636,28 @@ impl ParticleRenderer {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: target.depth_view(),
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            pass.set_pipeline(&self.render_pipeline);
+            pass.set_pipeline(if initialization_mode == 2 {
+                &self.translucent_pipeline
+            } else {
+                &self.render_pipeline
+            });
             pass.set_bind_group(0, &self.bind_groups[self.source_index], &[]);
             pass.draw(0..self.particle_count.saturating_mul(6), 0..1);
+            if render_config.particle_optics[0] > 0.0 || render_config.particle_optics[3] > 0.0 {
+                pass.set_pipeline(&self.glow_pipeline);
+                pass.draw(0..self.particle_count.saturating_mul(6), 0..1);
+            }
         }
         target.encode_post_process(&mut encoder, reset_history);
         context.queue.submit([encoder.finish()]);
@@ -689,6 +730,8 @@ impl ParticleRenderer {
             initialization_params,
             lifecycle_params,
             particle_depth_response: config.particle_depth_response,
+            particle_depth_color: config.particle_depth_color,
+            particle_optics: config.particle_optics,
             fire_base: fire_uniforms.0,
             fire_style: fire_uniforms.1,
             fire_audio_body: fire_uniforms.2,
@@ -748,7 +791,14 @@ impl ParticleRenderer {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: target.depth_view(),
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 timestamp_writes: self.timing.as_ref().map(|timing| {
                     wgpu::RenderPassTimestampWrites {
                         query_set: &timing.queries,
@@ -758,9 +808,17 @@ impl ParticleRenderer {
                 }),
                 occlusion_query_set: None,
             });
-            pass.set_pipeline(&self.render_pipeline);
+            pass.set_pipeline(if initialization_mode == 2 {
+                &self.translucent_pipeline
+            } else {
+                &self.render_pipeline
+            });
             pass.set_bind_group(0, &self.bind_groups[update_source ^ 1], &[]);
             pass.draw(0..self.particle_count.saturating_mul(6), 0..1);
+            if config.particle_optics[0] > 0.0 || config.particle_optics[3] > 0.0 {
+                pass.set_pipeline(&self.glow_pipeline);
+                pass.draw(0..self.particle_count.saturating_mul(6), 0..1);
+            }
         }
         if let Some(timing) = &self.timing {
             encoder.resolve_query_set(&timing.queries, 0..4, &timing.resolve, 0);
@@ -791,7 +849,7 @@ impl ParticleRenderer {
     /// # Errors
     ///
     /// Returns an error if the completed texture cannot be read back.
-    #[allow(clippy::cast_precision_loss)]
+    #[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
     pub fn render_frame(
         &mut self,
         context: &GpuContext,
@@ -823,6 +881,8 @@ impl ParticleRenderer {
             initialization_params,
             lifecycle_params,
             particle_depth_response: [1.0, 10.0, 0.0, 0.0],
+            particle_depth_color: [0.0; 4],
+            particle_optics: [0.0, 3.0, 1.0, 0.0],
             fire_base: fire_uniforms.0,
             fire_style: fire_uniforms.1,
             fire_audio_body: fire_uniforms.2,
@@ -876,11 +936,22 @@ impl ParticleRenderer {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: target.depth_view(),
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            pass.set_pipeline(&self.render_pipeline);
+            pass.set_pipeline(if initialization_mode == 2 {
+                &self.translucent_pipeline
+            } else {
+                &self.render_pipeline
+            });
             pass.set_bind_group(0, &self.bind_groups[update_source ^ 1], &[]);
             pass.draw(0..self.particle_count.saturating_mul(6), 0..1);
         }
@@ -926,6 +997,51 @@ fn storage_entry(
     }
 }
 
+fn particle_pipeline(
+    device: &wgpu::Device,
+    layout: &wgpu::PipelineLayout,
+    shader: &wgpu::ShaderModule,
+    fragment_entry: &str,
+    blend: wgpu::BlendState,
+    depth_write_enabled: bool,
+    label: &str,
+) -> wgpu::RenderPipeline {
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some(label),
+        layout: Some(layout),
+        vertex: wgpu::VertexState {
+            module: shader,
+            entry_point: Some("vertex"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            buffers: &[],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: shader,
+            entry_point: Some(fragment_entry),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format: HDR_FORMAT,
+                blend: Some(blend),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            ..Default::default()
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_FORMAT,
+            depth_write_enabled,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+        cache: None,
+    })
+}
+
 fn seed_u32(seed: u64) -> u32 {
     let bytes = seed.to_le_bytes();
     u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
@@ -940,10 +1056,12 @@ fn initialization_uniforms(initialization: ParticleInitialization) -> (u32, [f32
             lifetime_seconds,
             spawn_spread_seconds,
             lifetime_variation,
+            bulge_fraction,
+            halo_fraction,
         } => (
             1,
-            [radius, thickness, lifetime_seconds, 0.0],
-            [spawn_spread_seconds, lifetime_variation, 0.0, 0.0],
+            [radius, thickness, lifetime_seconds, bulge_fraction],
+            [spawn_spread_seconds, lifetime_variation, 0.0, halo_fraction],
         ),
         ParticleInitialization::Fire {
             base_radius,

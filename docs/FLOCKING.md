@@ -51,6 +51,11 @@ vortex, expansion, multi-attractor split, and reconvergence profiles. State
 weights use smooth interpolation during the configured transition interval and
 derive entirely from deterministic simulation time.
 
+The cinematic preset starts face-on but uses a wider initial Z distribution,
+Z-separated attractors, and a small Z directional bias. As its orbit progresses,
+depth-tested particle cores, atmospheric color, and particle bokeh reveal the
+flock's volume without changing the initial camera pose.
+
 ## Audio mappings
 
 The preset maps audio features through the existing attack/release envelope

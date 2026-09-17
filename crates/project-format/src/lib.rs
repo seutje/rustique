@@ -15,8 +15,8 @@ pub use automation::{AutomationKeyframeV1, AutomationTrackV1, SceneMarkerV1, eva
 pub use creative::{configure_seamless_camera_loop, morph_presets, randomize_preset_macros};
 
 pub use modulation::{
-    ActiveModulation, EnvelopeSmoother, ModulatedParameters, ModulationCurve, ModulationMapping,
-    ModulationPolarity, ModulationSource, ModulationTarget, evaluate_mappings,
+    ActiveModulation, EnvelopeSmoother, ModulatedParameters, ModulationCombine, ModulationCurve,
+    ModulationMapping, ModulationPolarity, ModulationSource, ModulationTarget, evaluate_mappings,
 };
 pub use package::{
     AssetKind, PackageAsset, PackageCreateOptions, PackageError, RenderConfigV1, RenderPackage,
@@ -494,6 +494,22 @@ pub struct RenderDefaultsV1 {
     /// Fraction of particle brightness removed at `particle_depth_far`.
     #[serde(default)]
     pub particle_depth_brightness_strength: f32,
+    /// Atmospheric color approached by distant particles.
+    #[serde(default)]
+    pub particle_depth_tint: [f32; 3],
+    /// Distant tint/desaturation strength.
+    #[serde(default)]
+    pub particle_depth_color_strength: f32,
+    /// Additive halo strength drawn after the depth-writing particle core.
+    #[serde(default)]
+    pub particle_glow_strength: f32,
+    #[serde(default = "default_particle_focus_distance")]
+    pub particle_focus_distance: f32,
+    #[serde(default = "default_particle_focus_range")]
+    pub particle_focus_range: f32,
+    /// Per-particle bokeh strength outside the focus range.
+    #[serde(default)]
+    pub particle_dof_strength: f32,
     pub background: [f64; 4],
 }
 
@@ -505,6 +521,14 @@ const fn default_particle_depth_far() -> f32 {
     10.0
 }
 
+const fn default_particle_focus_distance() -> f32 {
+    3.0
+}
+
+const fn default_particle_focus_range() -> f32 {
+    1.0
+}
+
 impl RenderDefaultsV1 {
     /// Packs particle depth controls in the order expected by render-core.
     #[must_use]
@@ -514,6 +538,26 @@ impl RenderDefaultsV1 {
             self.particle_depth_far,
             self.particle_depth_size_strength,
             self.particle_depth_brightness_strength,
+        ]
+    }
+
+    #[must_use]
+    pub const fn particle_depth_color(&self) -> [f32; 4] {
+        [
+            self.particle_depth_tint[0],
+            self.particle_depth_tint[1],
+            self.particle_depth_tint[2],
+            self.particle_depth_color_strength,
+        ]
+    }
+
+    #[must_use]
+    pub const fn particle_optics(&self) -> [f32; 4] {
+        [
+            self.particle_glow_strength,
+            self.particle_focus_distance,
+            self.particle_focus_range,
+            self.particle_dof_strength,
         ]
     }
 }
@@ -678,6 +722,8 @@ impl ProjectV1 {
             lifetime_seconds,
             spawn_spread_seconds,
             lifetime_variation,
+            bulge_fraction,
+            halo_fraction,
         } = self.particle_system.initialization
             && (!radius.is_finite()
                 || radius <= 0.0
@@ -688,10 +734,15 @@ impl ProjectV1 {
                 || !spawn_spread_seconds.is_finite()
                 || spawn_spread_seconds < 0.0
                 || !lifetime_variation.is_finite()
-                || !(0.0..1.0).contains(&lifetime_variation))
+                || !(0.0..1.0).contains(&lifetime_variation)
+                || !bulge_fraction.is_finite()
+                || !halo_fraction.is_finite()
+                || bulge_fraction < 0.0
+                || halo_fraction < 0.0
+                || bulge_fraction + halo_fraction > 1.0)
         {
             return Err(ProjectError::Validation(
-                "galactic disk requires positive radius, non-negative thickness/spawn spread, lifetime greater than five seconds, and lifetime variation in [0, 1)".into(),
+                "galactic disk requires positive radius, non-negative thickness/spawn spread, lifetime greater than five seconds, lifetime variation in [0, 1), and bulge/halo fractions totaling at most one".into(),
             ));
         }
         if let simulation::ParticleInitialization::Fire {
@@ -765,9 +816,23 @@ impl ProjectV1 {
             || !(0.0..=1.0).contains(&depth.particle_depth_size_strength)
             || !depth.particle_depth_brightness_strength.is_finite()
             || !(0.0..=1.0).contains(&depth.particle_depth_brightness_strength)
+            || depth
+                .particle_depth_tint
+                .iter()
+                .any(|value| !value.is_finite())
+            || !depth.particle_depth_color_strength.is_finite()
+            || !(0.0..=1.0).contains(&depth.particle_depth_color_strength)
+            || !depth.particle_glow_strength.is_finite()
+            || depth.particle_glow_strength < 0.0
+            || !depth.particle_focus_distance.is_finite()
+            || depth.particle_focus_distance <= 0.0
+            || !depth.particle_focus_range.is_finite()
+            || depth.particle_focus_range <= 0.0
+            || !depth.particle_dof_strength.is_finite()
+            || !(0.0..=1.0).contains(&depth.particle_dof_strength)
         {
             return Err(ProjectError::Validation(
-                "particle depth range must be finite, positive, and ordered, with size and brightness strengths in [0, 1]".into(),
+                "particle depth/optics values must be finite, ranges positive and ordered, normalized strengths in [0, 1], and glow non-negative".into(),
             ));
         }
         if !self.camera.vertical_fov_degrees.is_finite()
@@ -1008,6 +1073,12 @@ mod tests {
                 particle_depth_far: default_particle_depth_far(),
                 particle_depth_size_strength: 0.0,
                 particle_depth_brightness_strength: 0.0,
+                particle_depth_tint: [0.0; 3],
+                particle_depth_color_strength: 0.0,
+                particle_glow_strength: 0.0,
+                particle_focus_distance: default_particle_focus_distance(),
+                particle_focus_range: default_particle_focus_range(),
+                particle_dof_strength: 0.0,
                 background: [0.0, 0.0, 0.0, 1.0],
             },
             render_mode: RenderModeV1::Particles,

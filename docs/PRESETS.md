@@ -21,10 +21,17 @@ force, camera, modulation, particle-render, and post-processing systems.
 
 Particle presets can add camera-space depth cues through four render defaults:
 `particle_depth_near` and `particle_depth_far` define the response range,
-`particle_depth_size_strength` blends toward perspective-scaled particle size,
-and `particle_depth_brightness_strength` dims particles across that range. Both
-strengths are normalized from `0` (disabled) to `1` (full response). Omitted
-fields retain the original constant-size, constant-brightness behavior.
+`particle_depth_size_strength` controls an art-directed near-large/far-small
+scale, and `particle_depth_brightness_strength` dims particles across that
+range. Atmospheric tint/desaturation, additive glow, focus distance/range, and
+subtle particle bokeh are configured by the other `particle_depth_*`,
+`particle_glow_strength`, and `particle_*focus*`/`particle_dof_strength`
+fields. Normalized strengths use `0` to disable the effect. Omitted fields
+retain the original constant-size, constant-color behavior.
+
+Non-translucent particle systems render circular alpha-tested cores into a
+reusable depth buffer. Optional glow is a second additive, read-only depth pass,
+so distant particles cannot overwrite nearer cores while halos remain soft.
 
 The initial set is Star System, Nebula, Liquid Chrome, Green Slime, and Water
 Droplets. The material-heavy presets are particle-based visual prototypes until

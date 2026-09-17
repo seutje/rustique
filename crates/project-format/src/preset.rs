@@ -428,6 +428,12 @@ mod tests {
         }));
         assert!(project.render_defaults.particle_depth_size_strength > 0.0);
         assert!(project.render_defaults.particle_depth_brightness_strength > 0.0);
+        assert!(project.render_defaults.particle_glow_strength > 0.0);
+        assert!(project.render_defaults.particle_dof_strength > 0.0);
+        assert!(project.modulation_mappings.iter().any(|mapping| {
+            mapping.target == crate::ModulationTarget::ParticleSize
+                && mapping.combine == crate::ModulationCombine::Multiply
+        }));
     }
 
     #[test]
@@ -438,6 +444,12 @@ mod tests {
         assert!(flocking.attractors.len() > 1);
         assert!(preset.render_defaults.particle_depth_size_strength >= 0.8);
         assert!(preset.render_defaults.particle_depth_brightness_strength > 0.0);
+        assert!(preset.render_defaults.particle_depth_color_strength > 0.0);
+        assert!(preset.render_defaults.particle_dof_strength > 0.0);
+        assert!(preset.recommended_mappings.iter().any(|mapping| {
+            mapping.target == crate::ModulationTarget::Brightness
+                && mapping.combine == crate::ModulationCombine::Multiply
+        }));
         for target in [
             crate::ModulationTarget::FlockingSeparation,
             crate::ModulationTarget::FlockingCohesion,

@@ -522,6 +522,8 @@ async fn render_loop(
                             .project
                             .render_defaults
                             .particle_depth_response(),
+                        particle_depth_color: scene.project.render_defaults.particle_depth_color(),
+                        particle_optics: scene.project.render_defaults.particle_optics(),
                         force_scale: parameters.gravity_strength,
                         brightness: parameters.brightness,
                         hue_shift: parameters.hue_shift,

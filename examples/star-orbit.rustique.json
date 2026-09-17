@@ -50,7 +50,7 @@
   ],
   "visual_preset": {
     "source": "../presets/star-system.json",
-    "overrides": { "macros": { "density": 100000.0, "orbit_speed": 1.5 } }
+    "overrides": { "macros": { "density": 100000.0, "orbit_speed": 6.0 } }
   },
   "analysis_profile": {
     "source": "../profiles/analysis/techno.json",

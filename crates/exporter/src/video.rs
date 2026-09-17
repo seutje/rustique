@@ -304,6 +304,8 @@ pub fn export_video(
                     BenchmarkConfig {
                         particle_size_pixels: parameters.particle_size,
                         particle_depth_response: project.render_defaults.particle_depth_response(),
+                        particle_depth_color: project.render_defaults.particle_depth_color(),
+                        particle_optics: project.render_defaults.particle_optics(),
                         position_scale: 1.0,
                         force_scale: parameters.gravity_strength,
                         brightness: parameters.brightness,

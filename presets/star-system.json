@@ -1,6 +1,6 @@
 {
   "preset_version": 1, "id": "star-system", "display_name": "Star System", "description": "Spiral galaxy shaped by a central gravity well and two orbiting gravity wells",
-  "particle_system": { "count": 100000, "substeps": 2, "emitter": { "type": "burst", "count": 100000, "frame": 0, "respawn": "loop" }, "initialization": { "type": "galactic_disk", "radius": 0.82, "thickness": 0.035, "lifetime_seconds": 30.0, "spawn_spread_seconds": 3.0, "lifetime_variation": 0.4 }, "boundary": "unbounded" },
+  "particle_system": { "count": 100000, "substeps": 2, "emitter": { "type": "burst", "count": 100000, "frame": 0, "respawn": "loop" }, "initialization": { "type": "galactic_disk", "radius": 0.82, "thickness": 0.055, "lifetime_seconds": 30.0, "spawn_spread_seconds": 3.0, "lifetime_variation": 0.4, "bulge_fraction": 0.14, "halo_fraction": 0.06 }, "boundary": "unbounded" },
   "forces": [
     { "type": "point_attractor", "position": [0.0, 0.0, 0.0], "strength": 0.10, "minimum_acceleration": 0.02, "long_range_strength": 0.08, "long_range_drag": 0.5 },
     { "type": "orbiting_point_attractor", "center": [0.0, 0.0, 0.0], "orbit_radius": 0.42, "orbit_degrees_per_second": 32.0, "phase_degrees": 0.0, "strength": 0.008 },
@@ -8,16 +8,16 @@
     { "type": "vortex", "center": [0.0, 0.0, 0.0], "strength": 0.01 },
     { "type": "drag", "coefficient": 0.01 }
   ],
-  "camera": { "position": [0.0, 0.0, 3.6], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 45.0, "mode": "orbit", "orbit_degrees_per_second": 1.5, "drift_amplitude": [0.03, 0.02, 0.03], "fov_modulation_degrees": 8.0, "shake_amplitude": 0.03 },
-  "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 2.0, "particle_depth_near": 2.7, "particle_depth_far": 4.5, "particle_depth_size_strength": 0.55, "particle_depth_brightness_strength": 0.58, "background": [0.0, 0.0, 0.0, 1.0] },
+  "camera": { "position": [0.0, 0.0, 3.6], "target": [0.0, 0.0, 0.0], "vertical_fov_degrees": 45.0, "mode": "orbit", "orbit_degrees_per_second": 6.0, "drift_amplitude": [0.03, 0.02, 0.03], "fov_modulation_degrees": 8.0, "shake_amplitude": 0.03 },
+  "render_defaults": { "width": 1920, "height": 1080, "particle_size_pixels": 2.0, "particle_depth_near": 2.7, "particle_depth_far": 4.5, "particle_depth_size_strength": 0.85, "particle_depth_brightness_strength": 0.6, "particle_depth_tint": [0.03, 0.05, 0.16], "particle_depth_color_strength": 0.38, "particle_glow_strength": 0.4, "particle_focus_distance": 3.55, "particle_focus_range": 0.45, "particle_dof_strength": 0.18, "background": [0.0, 0.0, 0.0, 1.0] },
   "macros": [
     { "id": "density", "label": "Density", "target": "particle_count", "minimum": 10000.0, "maximum": 1000000.0, "default": 100000.0 },
-    { "id": "orbit_speed", "label": "Orbit Speed", "target": "orbit_speed", "minimum": -30.0, "maximum": 30.0, "default": 1.5 }
+    { "id": "orbit_speed", "label": "Orbit Speed", "target": "orbit_speed", "minimum": -30.0, "maximum": 30.0, "default": 6.0 }
   ],
   "recommended_mappings": [
     { "source": "sub", "target": "gravity_strength", "amount": 1.65, "offset": 0.55, "minimum": 0.55, "maximum": 2.2, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.015, "release_seconds": 0.28 },
-    { "source": "highs", "target": "brightness", "amount": 1.8, "offset": 0.65, "minimum": 0.65, "maximum": 2.45, "polarity": "normal", "curve": "linear", "attack_seconds": 0.015, "release_seconds": 0.2 },
-    { "source": "sub", "target": "particle_size", "amount": 4.0, "offset": 1.4, "minimum": 1.4, "maximum": 5.4, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.16 },
+    { "source": "highs", "target": "brightness", "amount": 1.8, "offset": 0.65, "minimum": 0.65, "maximum": 2.45, "polarity": "normal", "curve": "linear", "combine": "multiply", "attack_seconds": 0.015, "release_seconds": 0.2 },
+    { "source": "sub", "target": "particle_size", "amount": 1.0, "offset": 0.75, "minimum": 0.75, "maximum": 1.75, "polarity": "normal", "curve": "exponential", "combine": "multiply", "attack_seconds": 0.0, "release_seconds": 0.16 },
     { "source": "bass", "target": "hue_shift", "amount": 0.18, "offset": -0.03, "minimum": -0.03, "maximum": 0.15, "polarity": "normal", "curve": "linear", "attack_seconds": 0.03, "release_seconds": 0.25 },
     { "source": "transient", "target": "camera_shake", "amount": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "polarity": "normal", "curve": "exponential", "attack_seconds": 0.0, "release_seconds": 0.12 },
     { "source": "bass", "target": "camera_fov", "amount": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "polarity": "normal", "curve": "linear", "attack_seconds": 0.04, "release_seconds": 0.3 }

@@ -10,6 +10,7 @@ use thiserror::Error;
 use crate::{GpuContext, PostProcessConfig, post_process::PostProcessor};
 
 const BYTES_PER_PIXEL: u32 = 4;
+pub(crate) const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
 /// Linear RGBA values used when clearing an offscreen frame.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -85,6 +86,8 @@ pub struct OffscreenRenderTarget {
     height: u32,
     padded_bytes_per_row: u32,
     post_processor: PostProcessor,
+    _depth: wgpu::Texture,
+    depth_view: wgpu::TextureView,
     readback_buffer: wgpu::Buffer,
 }
 
@@ -135,6 +138,21 @@ impl OffscreenRenderTarget {
             .ok_or(OffscreenError::SizeOverflow)?;
 
         let post_processor = PostProcessor::new(context, width, height, post_process);
+        let depth = context.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("rustique-scene-depth"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: DEPTH_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let depth_view = depth.create_view(&wgpu::TextureViewDescriptor::default());
         let readback_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("rustique-offscreen-readback"),
             size: buffer_size,
@@ -147,6 +165,8 @@ impl OffscreenRenderTarget {
             height,
             padded_bytes_per_row,
             post_processor,
+            _depth: depth,
+            depth_view,
             readback_buffer,
         })
     }
@@ -158,6 +178,10 @@ impl OffscreenRenderTarget {
 
     pub(crate) fn view(&self) -> &wgpu::TextureView {
         self.post_processor.scene_view()
+    }
+
+    pub(crate) const fn depth_view(&self) -> &wgpu::TextureView {
+        &self.depth_view
     }
 
     #[must_use]
@@ -214,6 +238,7 @@ impl OffscreenRenderTarget {
     #[must_use]
     pub fn allocated_texture_bytes(&self) -> u64 {
         PostProcessor::allocated_texture_bytes(self.width, self.height)
+            + u64::from(self.width) * u64::from(self.height) * 4
     }
 
     pub(crate) fn read_pixels(&self, context: &GpuContext) -> Result<Vec<u8>, OffscreenError> {
@@ -292,7 +317,14 @@ impl OffscreenRenderTarget {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: self.depth_view(),
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });

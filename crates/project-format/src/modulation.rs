@@ -85,6 +85,15 @@ pub enum ModulationCurve {
     Exponential,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModulationCombine {
+    #[default]
+    Replace,
+    Multiply,
+    Add,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModulationMapping {
@@ -98,6 +107,8 @@ pub struct ModulationMapping {
     pub maximum: f32,
     pub polarity: ModulationPolarity,
     pub curve: ModulationCurve,
+    #[serde(default)]
+    pub combine: ModulationCombine,
     pub attack_seconds: f32,
     pub release_seconds: f32,
 }
@@ -111,6 +122,7 @@ pub struct ActiveModulation {
     pub target: ModulationTarget,
     pub source_value: f32,
     pub output_value: f32,
+    pub combine: ModulationCombine,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -192,52 +204,62 @@ impl ModulatedParameters {
     pub fn apply(&mut self, active: &[ActiveModulation]) {
         for value in active {
             match value.target {
-                ModulationTarget::GravityStrength => self.gravity_strength = value.output_value,
-                ModulationTarget::ParticleSize => self.particle_size = value.output_value,
-                ModulationTarget::Brightness => self.brightness = value.output_value,
-                ModulationTarget::HueShift => self.hue_shift = value.output_value,
-                ModulationTarget::BurstEmission => self.burst_emission = value.output_value,
-                ModulationTarget::CameraFov => self.camera_fov = value.output_value,
-                ModulationTarget::CameraShake => self.camera_shake = value.output_value,
-                ModulationTarget::MaterialRoughness => self.material_roughness = value.output_value,
+                ModulationTarget::GravityStrength => apply_value(&mut self.gravity_strength, value),
+                ModulationTarget::ParticleSize => apply_value(&mut self.particle_size, value),
+                ModulationTarget::Brightness => apply_value(&mut self.brightness, value),
+                ModulationTarget::HueShift => apply_value(&mut self.hue_shift, value),
+                ModulationTarget::BurstEmission => apply_value(&mut self.burst_emission, value),
+                ModulationTarget::CameraFov => apply_value(&mut self.camera_fov, value),
+                ModulationTarget::CameraShake => apply_value(&mut self.camera_shake, value),
+                ModulationTarget::MaterialRoughness => {
+                    apply_value(&mut self.material_roughness, value);
+                }
                 ModulationTarget::ReflectionIntensity => {
-                    self.reflection_intensity = value.output_value;
+                    apply_value(&mut self.reflection_intensity, value);
                 }
-                ModulationTarget::SurfaceScale => self.surface_scale = value.output_value,
-                ModulationTarget::VolumeDensity => self.volume_density = value.output_value,
-                ModulationTarget::VolumeMotion => self.volume_motion = value.output_value,
-                ModulationTarget::DropletDensity => self.droplet_density = value.output_value,
-                ModulationTarget::DropletSize => self.droplet_size = value.output_value,
+                ModulationTarget::SurfaceScale => apply_value(&mut self.surface_scale, value),
+                ModulationTarget::VolumeDensity => apply_value(&mut self.volume_density, value),
+                ModulationTarget::VolumeMotion => apply_value(&mut self.volume_motion, value),
+                ModulationTarget::DropletDensity => apply_value(&mut self.droplet_density, value),
+                ModulationTarget::DropletSize => apply_value(&mut self.droplet_size, value),
                 ModulationTarget::DropletRefraction => {
-                    self.droplet_refraction = value.output_value;
+                    apply_value(&mut self.droplet_refraction, value);
                 }
-                ModulationTarget::DropletGravity => self.droplet_gravity = value.output_value,
+                ModulationTarget::DropletGravity => apply_value(&mut self.droplet_gravity, value),
                 ModulationTarget::FlockingSeparation => {
-                    self.flocking_separation = value.output_value;
+                    apply_value(&mut self.flocking_separation, value);
                 }
                 ModulationTarget::FlockingCohesion => {
-                    self.flocking_cohesion = value.output_value;
+                    apply_value(&mut self.flocking_cohesion, value);
                 }
                 ModulationTarget::FlockingTurbulence => {
-                    self.flocking_turbulence = value.output_value;
+                    apply_value(&mut self.flocking_turbulence, value);
                 }
-                ModulationTarget::FlockingSpeed => self.flocking_speed = value.output_value,
+                ModulationTarget::FlockingSpeed => apply_value(&mut self.flocking_speed, value),
                 ModulationTarget::FlockingRandomness => {
-                    self.flocking_randomness = value.output_value;
+                    apply_value(&mut self.flocking_randomness, value);
                 }
-                ModulationTarget::FlockingImpulse => self.flocking_impulse = value.output_value,
-                ModulationTarget::FireEmission => self.fire_emission = value.output_value,
-                ModulationTarget::FireBaseWidth => self.fire_base_width = value.output_value,
-                ModulationTarget::FireHeight => self.fire_height = value.output_value,
-                ModulationTarget::FireSway => self.fire_sway = value.output_value,
-                ModulationTarget::FireTurbulence => self.fire_turbulence = value.output_value,
-                ModulationTarget::FireFlicker => self.fire_flicker = value.output_value,
-                ModulationTarget::FireShimmer => self.fire_shimmer = value.output_value,
-                ModulationTarget::FireSparks => self.fire_sparks = value.output_value,
-                ModulationTarget::FireTemperature => self.fire_temperature = value.output_value,
-                ModulationTarget::FireBeatWave => self.fire_beat_wave = value.output_value,
+                ModulationTarget::FlockingImpulse => apply_value(&mut self.flocking_impulse, value),
+                ModulationTarget::FireEmission => apply_value(&mut self.fire_emission, value),
+                ModulationTarget::FireBaseWidth => apply_value(&mut self.fire_base_width, value),
+                ModulationTarget::FireHeight => apply_value(&mut self.fire_height, value),
+                ModulationTarget::FireSway => apply_value(&mut self.fire_sway, value),
+                ModulationTarget::FireTurbulence => apply_value(&mut self.fire_turbulence, value),
+                ModulationTarget::FireFlicker => apply_value(&mut self.fire_flicker, value),
+                ModulationTarget::FireShimmer => apply_value(&mut self.fire_shimmer, value),
+                ModulationTarget::FireSparks => apply_value(&mut self.fire_sparks, value),
+                ModulationTarget::FireTemperature => apply_value(&mut self.fire_temperature, value),
+                ModulationTarget::FireBeatWave => apply_value(&mut self.fire_beat_wave, value),
             }
         }
+    }
+}
+
+fn apply_value(target: &mut f32, modulation: &ActiveModulation) {
+    match modulation.combine {
+        ModulationCombine::Replace => *target = modulation.output_value,
+        ModulationCombine::Multiply => *target *= modulation.output_value,
+        ModulationCombine::Add => *target += modulation.output_value,
     }
 }
 
@@ -310,6 +332,7 @@ pub fn evaluate_mappings(
                 source_value: smoothed,
                 output_value: (mapping.offset + curved * mapping.amount)
                     .clamp(mapping.minimum, mapping.maximum),
+                combine: mapping.combine,
             })
         })
         .collect()
@@ -330,6 +353,7 @@ mod tests {
             maximum: 2.0,
             polarity: ModulationPolarity::Normal,
             curve: ModulationCurve::Linear,
+            combine: ModulationCombine::Replace,
             attack_seconds: 0.0,
             release_seconds: 0.0,
         }
@@ -398,6 +422,31 @@ mod tests {
     }
 
     #[test]
+    fn combine_modes_preserve_base_values() {
+        let mut parameters = ModulatedParameters {
+            particle_size: 4.0,
+            brightness: 0.8,
+            ..ModulatedParameters::default()
+        };
+        parameters.apply(&[
+            ActiveModulation {
+                target: ModulationTarget::ParticleSize,
+                source_value: 0.5,
+                output_value: 1.5,
+                combine: ModulationCombine::Multiply,
+            },
+            ActiveModulation {
+                target: ModulationTarget::Brightness,
+                source_value: 0.5,
+                output_value: 0.2,
+                combine: ModulationCombine::Add,
+            },
+        ]);
+        assert!((parameters.particle_size - 6.0).abs() < f32::EPSILON);
+        assert!((parameters.brightness - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
     fn applies_specialized_renderer_targets() {
         let targets = [
             ModulationTarget::VolumeDensity,
@@ -414,6 +463,7 @@ mod tests {
                 target,
                 source_value: 0.5,
                 output_value,
+                combine: ModulationCombine::Replace,
             })
             .collect();
         let mut parameters = ModulatedParameters::default();
